@@ -23,7 +23,7 @@ func TestServeStdioAnswersBeforeEOF(t *testing.T) {
 		Handler: func(ctx context.Context, _ *core.Request) (*core.Result, error) {
 			select {
 			case <-time.After(100 * time.Millisecond):
-				return &core.Result{Content: []core.Content{{Text: "done"}}}, nil
+				return &core.Result{Content: []core.Content{core.TextContent{Text: "done"}}}, nil
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}

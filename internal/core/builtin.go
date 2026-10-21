@@ -62,7 +62,8 @@ func RequireScopes(scopes ...string) Middleware {
 }
 
 // MaxOutput limits the total size of a result's content, in bytes: the sum
-// of text blocks plus the JSON encoding of structured output. An oversized
+// of all blocks (text, raw image bytes, link fields) plus the JSON encoding
+// of structured output. An oversized
 // result is replaced by an error, rather than truncated, because truncation
 // would silently break structured output. A non-positive n disables the limit.
 func MaxOutput(n int) Middleware {
@@ -88,7 +89,7 @@ func MaxOutput(n int) Middleware {
 func resultSize(r *Result) (int, error) {
 	size := 0
 	for _, c := range r.Content {
-		size += len(c.Text)
+		size += c.size()
 	}
 	if r.Structured != nil {
 		b, err := json.Marshal(r.Structured)

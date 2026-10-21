@@ -34,10 +34,38 @@ type ToolMeta struct {
 	MaxOutput   int
 }
 
-// Content is one content block of a tool result.
-// Only text is modelled for now; more kinds are added as needed.
-type Content struct {
+// Content is one content block of a tool result: TextContent, ImageContent
+// or ResourceLink. The set is closed; new kinds are added here and in the
+// SDK adapter together.
+type Content interface {
+	// size is the block's contribution to MaxOutput accounting.
+	size() int
+}
+
+// TextContent is a plain-text block.
+type TextContent struct {
 	Text string
+}
+
+// ImageContent is an image. Data holds the raw bytes (not base64).
+type ImageContent struct {
+	MIMEType string
+	Data     []byte
+}
+
+// ResourceLink points the client at a resource it can fetch separately.
+type ResourceLink struct {
+	URI         string
+	Name        string
+	Title       string
+	Description string
+	MIMEType    string
+}
+
+func (c TextContent) size() int  { return len(c.Text) }
+func (c ImageContent) size() int { return len(c.Data) }
+func (c ResourceLink) size() int {
+	return len(c.URI) + len(c.Name) + len(c.Title) + len(c.Description) + len(c.MIMEType)
 }
 
 // Result is the outcome of a tool call.

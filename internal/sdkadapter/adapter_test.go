@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -20,9 +21,9 @@ func ptr[T any](v T) *T { return &v }
 func whoami(ctx context.Context, _ *core.Request) (*core.Result, error) {
 	id := auth.FromContext(ctx)
 	if id == nil {
-		return &core.Result{Content: []core.Content{{Text: "anonymous"}}}, nil
+		return &core.Result{Content: []core.Content{core.TextContent{Text: "anonymous"}}}, nil
 	}
-	return &core.Result{Content: []core.Content{{Text: id.Subject}}}, nil
+	return &core.Result{Content: []core.Content{core.TextContent{Text: id.Subject}}}, nil
 }
 
 func testServer() *Server {
@@ -156,5 +157,19 @@ func TestHTTPIdentityAndScopes(t *testing.T) {
 	admin := connect(t, ts.URL, "admin")
 	if got, isErr := callText(t, admin, "admin"); isErr || got != "root" {
 		t.Fatalf("admin = %q (isError=%v), want root", got, isErr)
+	}
+}
+
+func TestContentRoundTrip(t *testing.T) {
+	blocks := []core.Content{
+		core.TextContent{Text: "hi"},
+		core.ImageContent{MIMEType: "image/png", Data: []byte{0x89, 'P', 'N', 'G'}},
+		core.ResourceLink{URI: "file:///a.txt", Name: "a.txt", MIMEType: "text/plain"},
+	}
+	for _, b := range blocks {
+		got := fromSDKContent(toSDKContent(b))
+		if !reflect.DeepEqual(got, b) {
+			t.Errorf("round trip %#v → %#v", b, got)
+		}
 	}
 }

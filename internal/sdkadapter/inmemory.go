@@ -44,8 +44,8 @@ func CallInMemory(ctx context.Context, srv *Server, tool string, args json.RawMe
 	}
 	out := &core.Result{Structured: res.StructuredContent, IsError: res.IsError}
 	for _, c := range res.Content {
-		if t, ok := c.(*mcp.TextContent); ok {
-			out.Content = append(out.Content, core.Content{Text: t.Text})
+		if cc := fromSDKContent(c); cc != nil {
+			out.Content = append(out.Content, cc)
 		}
 	}
 	return out, nil

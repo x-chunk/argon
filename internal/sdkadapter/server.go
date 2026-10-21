@@ -91,7 +91,33 @@ func toSDKResult(r *core.Result) *mcp.CallToolResult {
 		IsError:           r.IsError,
 	}
 	for _, c := range r.Content {
-		out.Content = append(out.Content, &mcp.TextContent{Text: c.Text})
+		if sc := toSDKContent(c); sc != nil {
+			out.Content = append(out.Content, sc)
+		}
 	}
 	return out
+}
+
+func toSDKContent(c core.Content) mcp.Content {
+	switch c := c.(type) {
+	case core.TextContent:
+		return &mcp.TextContent{Text: c.Text}
+	case core.ImageContent:
+		return &mcp.ImageContent{MIMEType: c.MIMEType, Data: c.Data}
+	case core.ResourceLink:
+		return &mcp.ResourceLink{URI: c.URI, Name: c.Name, Title: c.Title, Description: c.Description, MIMEType: c.MIMEType}
+	}
+	return nil
+}
+
+func fromSDKContent(c mcp.Content) core.Content {
+	switch c := c.(type) {
+	case *mcp.TextContent:
+		return core.TextContent{Text: c.Text}
+	case *mcp.ImageContent:
+		return core.ImageContent{MIMEType: c.MIMEType, Data: c.Data}
+	case *mcp.ResourceLink:
+		return core.ResourceLink{URI: c.URI, Name: c.Name, Title: c.Title, Description: c.Description, MIMEType: c.MIMEType}
+	}
+	return nil
 }

@@ -67,10 +67,13 @@ func Call[Out any](t testing.TB, s *argon.Server, tool string, in any, opts ...C
 	return zero, nil
 }
 
+// joinText concatenates the text blocks of r, ignoring other content.
 func joinText(r *argon.Result) string {
-	parts := make([]string, len(r.Content))
-	for i, c := range r.Content {
-		parts[i] = c.Text
+	var parts []string
+	for _, c := range r.Content {
+		if t, ok := c.(argon.TextContent); ok {
+			parts = append(parts, t.Text)
+		}
 	}
 	return strings.Join(parts, "\n")
 }

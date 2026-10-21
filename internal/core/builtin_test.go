@@ -13,7 +13,7 @@ import (
 
 func textHandler(s string) Handler {
 	return func(context.Context, *Request) (*Result, error) {
-		return &Result{Content: []Content{{Text: s}}}, nil
+		return &Result{Content: []Content{TextContent{Text: s}}}, nil
 	}
 }
 
@@ -26,11 +26,11 @@ func TestMaxOutput(t *testing.T) {
 		res     *Result
 		wantErr bool
 	}{
-		{"under", 10, &Result{Content: []Content{{Text: "12345"}}}, false},
-		{"exact", 5, &Result{Content: []Content{{Text: "12345"}}}, false},
-		{"over text", 4, &Result{Content: []Content{{Text: "12345"}}}, true},
+		{"under", 10, &Result{Content: []Content{TextContent{Text: "12345"}}}, false},
+		{"exact", 5, &Result{Content: []Content{TextContent{Text: "12345"}}}, false},
+		{"over text", 4, &Result{Content: []Content{TextContent{Text: "12345"}}}, true},
 		{"over structured", 10, &Result{Structured: map[string]string{"k": strings.Repeat("x", 20)}}, true},
-		{"disabled", 0, &Result{Content: []Content{{Text: strings.Repeat("x", 1000)}}}, false},
+		{"disabled", 0, &Result{Content: []Content{TextContent{Text: strings.Repeat("x", 1000)}}}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -145,5 +145,16 @@ func TestBuildAttachesMeta(t *testing.T) {
 	}
 	if req.Meta != nil {
 		t.Fatal("caller's request must not be mutated")
+	}
+}
+
+func TestMaxOutputCountsAllContent(t *testing.T) {
+	res := &Result{Content: []Content{
+		TextContent{Text: "ab"},
+		ImageContent{MIMEType: "", Data: make([]byte, 10)},
+	}}
+	h := MaxOutput(11)(func(context.Context, *Request) (*Result, error) { return res, nil })
+	if _, err := h(context.Background(), &Request{Tool: "t"}); err == nil {
+		t.Fatal("image bytes must count towards the limit")
 	}
 }
