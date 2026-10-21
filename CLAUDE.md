@@ -1,0 +1,29 @@
+# Argon — project conventions
+
+Argon is an MCP server framework for Go built on top of the official SDK
+(`github.com/modelcontextprotocol/go-sdk`). See `docs/architecture.md`.
+
+## Commits
+- **Atomic commits**: one logical change per commit. Do not mix refactoring,
+  features and formatting in one commit.
+- Every commit must build and pass checks on its own:
+  `go build ./... && go vet ./... && go test ./...`.
+- Conventional Commits, in English: `feat(core): ...`, `fix(auth): ...`,
+  `docs: ...`, `chore: ...`, `test(...)`, `refactor(...)`.
+  Scope is the package name (`core`, `auth`, `oidc`, `sdkadapter`, `argontest`).
+
+## Layering rules
+- SDK types (`modelcontextprotocol/go-sdk`) are imported **only** in
+  `internal/sdkadapter`. The public API exposes Argon's own types only.
+- `auth` is a leaf package with no heavy dependencies (no JOSE/JWT libs).
+  Token crypto lives in `auth/oidc`.
+- Dependency direction: `argon → internal/core, internal/sdkadapter, auth`;
+  `internal/sdkadapter → go-sdk, internal/core, auth`; `auth/oidc → auth`.
+  Nothing imports the root `argon` package except users, `argontest`
+  and examples.
+
+## Code
+- Unimplemented code returns `ErrNotImplemented`-style errors and is marked
+  `// TODO(v0.1)`; no panics as placeholders.
+- Never log tokens; never return raw verification errors to clients.
+- Do not write crypto — use vetted libraries behind Argon interfaces.
