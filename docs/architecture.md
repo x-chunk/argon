@@ -17,8 +17,11 @@ go-sdk                    protocol, transports, HTTP bearer plumbing
 Side packages:
 
 - `auth` — Identity, TokenVerifier, Config, static verifier. Lightweight leaf.
-- `auth/oidc` — discovery, JWKS and introspection verifier (pulls JWT deps).
-- `internal/stdioguard` — keeps stdout clean for the stdio transport.
+- `auth/oidc` — issuer-driven verifier: OIDC / RFC 8414 discovery, JWKS cache
+  with rate-limited refresh, JWT verification via `go-jose` (asymmetric
+  allowlist; `none`/HMAC never accepted), RFC 7662 introspection.
+- `internal/stdioguard` — keeps stdout clean for the stdio transport
+  (fd-level `dup2` on Unix, so cgo and child processes are covered).
 - `argontest` — in-memory calls, fake identities, fake issuer.
 - `internal/testhook` — lets `argontest` build an SDK server from an
   `*argon.Server` without widening the public API.
@@ -49,6 +52,8 @@ Argon adds:
 | Per-tool middleware: recover, timeout, output limit, scopes | `internal/core` |
 | Transport auto-selection (`Run`) and stdout guard | `argon`, `internal/stdioguard` |
 | JWT/JWKS + introspection verifier, alg allowlist | `auth/oidc` |
+| Input validation against the inferred schema | `argon` |
+| Fake authorization server for tests | `argontest` |
 | Identity in context, claims mapping (`scope`/`scp`) | `auth` |
 | In-memory test helpers | `argontest` |
 
@@ -56,8 +61,9 @@ Argon adds:
 
 1. Transport (SDK) receives the request; on HTTP the SDK bearer middleware
    calls Argon's verifier adapter, which stores `auth.Identity` in context.
-2. `sdkadapter` decodes arguments (SDK validates against the schema) and
-   invokes the core handler.
+2. `sdkadapter` hands raw arguments to the core handler. Argon registers
+   tools through the SDK's low-level API, so it validates arguments itself
+   against the inferred schema (defaults applied) before decoding into `In`.
 3. `core` runs the middleware chain (global, then per-tool) and the user
    handler.
 4. The result is packed into content blocks; errors become `isError`.
