@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -60,12 +61,41 @@ func RequireScopes(scopes ...string) Middleware {
 	}
 }
 
-// MaxOutput limits the total size of a result's content, in bytes.
-// A non-positive n disables the limit.
+// MaxOutput limits the total size of a result's content, in bytes: the sum
+// of text blocks plus the JSON encoding of structured output. An oversized
+// result is replaced by an error, rather than truncated, because truncation
+// would silently break structured output. A non-positive n disables the limit.
 func MaxOutput(n int) Middleware {
 	return func(next Handler) Handler {
-		// TODO(v0.1): measure text + structured output and truncate or
-		// replace with an error result when it exceeds n.
-		return next
+		if n <= 0 {
+			return next
+		}
+		return func(ctx context.Context, req *Request) (*Result, error) {
+			res, err := next(ctx, req)
+			if err != nil || res == nil {
+				return res, err
+			}
+			if size, err := resultSize(res); err != nil {
+				return nil, err
+			} else if size > n {
+				return nil, fmt.Errorf("tool %q output too large: %d bytes, limit %d", req.Tool, size, n)
+			}
+			return res, nil
+		}
 	}
+}
+
+func resultSize(r *Result) (int, error) {
+	size := 0
+	for _, c := range r.Content {
+		size += len(c.Text)
+	}
+	if r.Structured != nil {
+		b, err := json.Marshal(r.Structured)
+		if err != nil {
+			return 0, fmt.Errorf("encode structured output: %w", err)
+		}
+		size += len(b)
+	}
+	return size, nil
 }
