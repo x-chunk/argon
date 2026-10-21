@@ -29,14 +29,18 @@ func (s *Server) Run() error {
 	return s.RunStdio(ctx)
 }
 
-// RunStdio serves s over stdin/stdout. While it runs, os.Stdout is redirected
-// to stderr so stray prints cannot corrupt the protocol stream.
+// RunStdio serves s over stdin/stdout. While it runs, stdout is redirected to
+// stderr (at the file-descriptor level on Unix) so stray writes cannot
+// corrupt the protocol stream.
 func (s *Server) RunStdio(ctx context.Context) error {
 	srv, err := s.build()
 	if err != nil {
 		return err
 	}
-	out, restore := stdioguard.Capture()
+	out, restore, err := stdioguard.Capture()
+	if err != nil {
+		return err
+	}
 	defer restore()
 	return sdkadapter.ServeStdio(ctx, srv, os.Stdin, out)
 }
