@@ -17,6 +17,11 @@ Argon is an MCP server framework for Go built on top of the official SDK
   (see `test/keycloak`). Run them when touching `auth/oidc` or the HTTP path:
   `go test -tags integration ./...` with Keycloak up.
 
+- CI (`.github/workflows/ci.yml`) enforces gofmt, tidy go.mod, vet,
+  govulncheck, the layering rules below, tests on Linux/macOS/Windows and
+  the Keycloak integration tests. Keep it green; run its checks locally
+  before committing.
+
 ## Layering rules
 - SDK types (`modelcontextprotocol/go-sdk`) are imported **only** in
   `internal/sdkadapter`. The public API exposes Argon's own types only.
