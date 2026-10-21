@@ -40,6 +40,7 @@ func Call[Out any](t testing.TB, s *argon.Server, tool string, in any, opts ...C
 	for _, o := range opts {
 		o(&cfg)
 	}
+	// A fresh server per call keeps calls isolated (see CallInMemory).
 	srv, err := testhook.BuildServer(s)
 	if err != nil {
 		t.Fatalf("argontest: build server: %v", err)

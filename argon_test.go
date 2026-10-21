@@ -96,3 +96,31 @@ func TestInputValidated(t *testing.T) {
 		t.Fatalf("valid input: got %q, %v", got, err)
 	}
 }
+
+func TestWithIdentityAndScopes(t *testing.T) {
+	s := argon.New("test")
+	argon.Tool(s, "whoami", "Caller subject", func(ctx context.Context, _ struct{}) (string, error) {
+		if id := argon.IdentityFrom(ctx); id != nil {
+			return id.Subject, nil
+		}
+		return "anonymous", nil
+	})
+	argon.Tool(s, "admin", "Needs admin", func(context.Context, struct{}) (string, error) {
+		return "ok", nil
+	}, argon.Scopes("admin"))
+
+	if got, _ := argontest.Call[string](t, s, "whoami", struct{}{}); got != "anonymous" {
+		t.Fatalf("no identity: got %q", got)
+	}
+	alice := argon.Identity{Subject: "alice"}
+	if got, _ := argontest.Call[string](t, s, "whoami", struct{}{}, argontest.WithIdentity(alice)); got != "alice" {
+		t.Fatalf("with identity: got %q", got)
+	}
+	if _, err := argontest.Call[string](t, s, "admin", struct{}{}, argontest.WithIdentity(alice)); err == nil {
+		t.Fatal("missing scope must fail")
+	}
+	root := argon.Identity{Subject: "root", Scopes: []string{"admin"}}
+	if _, err := argontest.Call[string](t, s, "admin", struct{}{}, argontest.WithIdentity(root)); err != nil {
+		t.Fatalf("admin scope: %v", err)
+	}
+}

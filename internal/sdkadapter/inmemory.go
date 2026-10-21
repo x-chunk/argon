@@ -13,10 +13,18 @@ import (
 // CallInMemory connects an in-memory client to srv, calls tool once and
 // returns the result in core form. It exercises the full SDK path
 // (schema, encoding, result packing) without a subprocess or network.
+//
+// If id is non-nil, the call runs as that identity, as if it had arrived with
+// a verified bearer token. srv must be freshly built for this call, because
+// injecting the identity installs middleware on it.
 func CallInMemory(ctx context.Context, srv *Server, tool string, args json.RawMessage, id *auth.Identity) (*core.Result, error) {
-	// TODO(v0.1): inject id into the server-side request (in-memory
-	// transport has no bearer token); needed for scope tests.
-	_ = id
+	if id != nil {
+		srv.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+			return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+				return next(auth.NewContext(ctx, id), method, req)
+			}
+		})
+	}
 	ct, st := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, st, nil)
 	if err != nil {
