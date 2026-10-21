@@ -19,9 +19,15 @@ const (
 )
 
 // Issuer returns the realm issuer URL, honouring ARGON_KEYCLOAK_URL.
-// If Keycloak is unreachable the test is skipped with instructions.
+// If Keycloak is unreachable the test is skipped with instructions, or
+// fails when ARGON_REQUIRE_KEYCLOAK is set (CI), so a broken environment
+// cannot pass silently.
 func Issuer(t testing.TB) string {
 	t.Helper()
+	unavailable := t.Skipf
+	if os.Getenv("ARGON_REQUIRE_KEYCLOAK") != "" {
+		unavailable = t.Fatalf
+	}
 	base := os.Getenv("ARGON_KEYCLOAK_URL")
 	if base == "" {
 		base = "http://localhost:8180"
@@ -29,11 +35,11 @@ func Issuer(t testing.TB) string {
 	iss := strings.TrimSuffix(base, "/") + "/realms/argon"
 	resp, err := http.Get(iss + "/.well-known/openid-configuration")
 	if err != nil {
-		t.Skipf("keycloak not reachable at %s (start it with: docker compose -f test/keycloak/compose.yaml up -d --wait): %v", base, err)
+		unavailable("keycloak not reachable at %s (start it with: docker compose -f test/keycloak/compose.yaml up -d --wait): %v", base, err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Skipf("keycloak realm not ready: status %d", resp.StatusCode)
+		unavailable("keycloak realm not ready: status %d", resp.StatusCode)
 	}
 	return iss
 }
