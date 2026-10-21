@@ -3,6 +3,7 @@ package argon
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"go.xchunk.org/argon/internal/core"
 )
@@ -22,8 +23,13 @@ func NewResult(blocks ...Content) *Result { return &Result{Content: blocks} }
 // pack converts a handler's typed output into a Result:
 //   - *Result is returned as is;
 //   - string becomes a text block;
-//   - anything else becomes structured content plus its JSON as text.
-func pack(out any) (*core.Result, error) {
+//   - anything else becomes its JSON as text; it is also sent as structured
+//     content when structured is set, i.e. when the tool declares an output
+//     schema (struct outputs). Older spec revisions require structured
+//     content to be an object, so slices and scalars are text-only.
+//
+// Nil slices and maps are encoded as [] and {} rather than null.
+func pack(out any, structured bool) (*core.Result, error) {
 	switch v := out.(type) {
 	case *Result:
 		return v, nil
@@ -34,5 +40,17 @@ func pack(out any) (*core.Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("argon: encode output: %w", err)
 	}
-	return &Result{Content: []Content{TextContent{Text: string(b)}}, Structured: out}, nil
+	if string(b) == "null" {
+		switch reflect.ValueOf(out).Kind() {
+		case reflect.Slice:
+			b = []byte("[]")
+		case reflect.Map:
+			b = []byte("{}")
+		}
+	}
+	res := &Result{Content: []Content{TextContent{Text: string(b)}}}
+	if structured {
+		res.Structured = out
+	}
+	return res, nil
 }

@@ -63,7 +63,7 @@ func newTool[In, Out any](name, description string, h func(context.Context, In) 
 			if err != nil {
 				return nil, err
 			}
-			return pack(out)
+			return pack(out, outSchema != nil)
 		},
 	}, nil
 }
