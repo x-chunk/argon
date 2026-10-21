@@ -1,7 +1,9 @@
 package core
 
 import (
+	"context"
 	"log/slog"
+	"slices"
 	"time"
 )
 
@@ -14,7 +16,7 @@ type Defaults struct {
 
 // Build assembles the effective handler for t. Order, outermost first:
 //
-//	recover → global middleware → scopes → timeout → max output → tool middleware → handler
+//	meta → recover → global middleware → scopes → timeout → max output → tool middleware → handler
 //
 // Recover is outermost so that panics anywhere in the chain are contained.
 func Build(t *Tool, d Defaults, global []Middleware) Handler {
@@ -31,10 +33,31 @@ func Build(t *Tool, d Defaults, global []Middleware) Handler {
 		log = slog.Default()
 	}
 
-	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+4)
-	mws = append(mws, Recover(log))
+	meta := &ToolMeta{
+		Name:        t.Name,
+		Title:       t.Title,
+		Annotations: t.Annotations,
+		Scopes:      slices.Clone(t.Scopes),
+		Timeout:     timeout,
+		MaxOutput:   maxOut,
+	}
+
+	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+5)
+	mws = append(mws, withMeta(meta), Recover(log))
 	mws = append(mws, global...)
 	mws = append(mws, RequireScopes(t.Scopes...), Timeout(timeout), MaxOutput(maxOut))
 	mws = append(mws, t.Middleware...)
 	return Chain(t.Handler, mws...)
+}
+
+// withMeta attaches the tool description to every request. A shallow copy
+// of the request is made so callers' Request values are never mutated.
+func withMeta(meta *ToolMeta) Middleware {
+	return func(next Handler) Handler {
+		return func(ctx context.Context, req *Request) (*Result, error) {
+			r := *req
+			r.Meta = meta
+			return next(ctx, &r)
+		}
+	}
 }

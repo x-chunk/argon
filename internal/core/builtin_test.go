@@ -117,3 +117,33 @@ func TestBuildToolOverridesDefaults(t *testing.T) {
 		t.Fatal("per-tool MaxOutput must override the default")
 	}
 }
+
+func TestBuildAttachesMeta(t *testing.T) {
+	ro := true
+	tool := &Tool{
+		Name:        "t",
+		Annotations: Annotations{ReadOnly: &ro},
+		Scopes:      []string{"s"},
+		Handler:     textHandler("ok"),
+	}
+	var seen *ToolMeta
+	spy := func(next Handler) Handler {
+		return func(ctx context.Context, r *Request) (*Result, error) {
+			seen = r.Meta
+			return next(ctx, r)
+		}
+	}
+	h := Build(tool, Defaults{Timeout: time.Minute, MaxOutput: 7}, []Middleware{spy})
+	ctx := auth.NewContext(context.Background(), &auth.Identity{Scopes: []string{"s"}})
+	req := &Request{Tool: "t"}
+	if _, err := h(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if seen == nil || seen.Name != "t" || *seen.Annotations.ReadOnly != true ||
+		seen.Timeout != time.Minute || seen.MaxOutput != 7 || seen.Scopes[0] != "s" {
+		t.Fatalf("meta = %+v", seen)
+	}
+	if req.Meta != nil {
+		t.Fatal("caller's request must not be mutated")
+	}
+}

@@ -14,4 +14,9 @@ type (
 	Handler = core.Handler
 	// Middleware wraps a Handler with cross-cutting behaviour.
 	Middleware = core.Middleware
+	// ToolMeta describes the invoked tool; available to middleware as
+	// Request.Meta.
+	ToolMeta = core.ToolMeta
+	// Annotations are behavioural hints about a tool.
+	Annotations = core.Annotations
 )

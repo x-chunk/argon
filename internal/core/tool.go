@@ -19,6 +19,19 @@ type Request struct {
 	Tool string
 	// Arguments are the raw JSON arguments sent by the client.
 	Arguments json.RawMessage
+	// Meta describes the invoked tool with effective policies (server
+	// defaults applied). Set by Build; middleware must treat it as read-only.
+	Meta *ToolMeta
+}
+
+// ToolMeta is the read-only view of a tool that middleware can inspect.
+type ToolMeta struct {
+	Name        string
+	Title       string
+	Annotations Annotations
+	Scopes      []string
+	Timeout     time.Duration
+	MaxOutput   int
 }
 
 // Content is one content block of a tool result.
