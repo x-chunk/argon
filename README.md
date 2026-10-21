@@ -102,8 +102,9 @@ argon.Tool(s, "add_note", "Save a note", addNote, argon.Scopes("notes:write"))
 - Handlers read the caller with `argon.IdentityFrom(ctx)`.
 - `auth/oidc` is a separate package: stdio-only servers do not pull in JOSE.
 
-Authorization servers tested so far: none beyond the bundled
-`argontest.FakeIssuer`. Reports for real servers are welcome.
+Authorization servers tested end to end: **Keycloak 26** (JWT and
+introspection; see `test/keycloak` and `examples/auth`). Reports for other
+servers are welcome.
 
 stdio servers have no OAuth: they run as the user, and credentials for
 downstream services come from the environment.
@@ -123,6 +124,17 @@ func TestGreet(t *testing.T) {
   `Scopes` and `IdentityFrom`.
 - `argontest.NewFakeIssuer(t)` is an in-process authorization server
   (discovery, JWKS, introspection) that mints tokens for auth tests.
+
+### Integration tests
+
+Real-server tests carry the `integration` build tag and skip when the server
+is not running:
+
+```
+docker compose -f test/keycloak/compose.yaml up -d --wait
+go test -tags integration ./...
+docker compose -f test/keycloak/compose.yaml down
+```
 
 ## Designing tools safely
 

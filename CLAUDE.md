@@ -13,6 +13,10 @@ Argon is an MCP server framework for Go built on top of the official SDK
   `docs: ...`, `chore: ...`, `test(...)`, `refactor(...)`.
   Scope is the package name (`core`, `auth`, `oidc`, `sdkadapter`, `argontest`).
 
+- Integration tests against real services use the `integration` build tag
+  (see `test/keycloak`). Run them when touching `auth/oidc` or the HTTP path:
+  `go test -tags integration ./...` with Keycloak up.
+
 ## Layering rules
 - SDK types (`modelcontextprotocol/go-sdk`) are imported **only** in
   `internal/sdkadapter`. The public API exposes Argon's own types only.
