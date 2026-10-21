@@ -104,4 +104,3 @@ func nonEmpty(s string) []string {
 	}
 	return []string{s}
 }
-

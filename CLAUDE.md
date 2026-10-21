@@ -7,7 +7,8 @@ Argon is an MCP server framework for Go built on top of the official SDK
 - **Atomic commits**: one logical change per commit. Do not mix refactoring,
   features and formatting in one commit.
 - Every commit must build and pass checks on its own:
-  `go build ./... && go vet ./... && go test ./...`.
+  `gofmt -l . && go build ./... && go vet ./... && go test ./...`
+  (`gofmt -l` must print nothing).
 - Conventional Commits, in English: `feat(core): ...`, `fix(auth): ...`,
   `docs: ...`, `chore: ...`, `test(...)`, `refactor(...)`.
   Scope is the package name (`core`, `auth`, `oidc`, `sdkadapter`, `argontest`).
