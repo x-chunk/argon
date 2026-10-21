@@ -36,6 +36,26 @@ func WithIdentity(id auth.Identity) CallOption { return func(c *callConfig) { c.
 func Call[Out any](t testing.TB, s *argon.Server, tool string, in any, opts ...CallOption) (Out, error) {
 	t.Helper()
 	var zero Out
+	res := CallResult(t, s, tool, in, opts...)
+	text := joinText(res)
+	if res.IsError {
+		return zero, errors.New(text)
+	}
+	if p, ok := any(&zero).(*string); ok {
+		*p = text
+		return zero, nil
+	}
+	if err := json.Unmarshal([]byte(text), &zero); err != nil {
+		return zero, fmt.Errorf("argontest: decode output: %w", err)
+	}
+	return zero, nil
+}
+
+// CallResult invokes tool and returns the raw result, for tools that return
+// several content blocks (text, images, resource links). Tool errors are
+// reported via Result.IsError; setup failures fail the test.
+func CallResult(t testing.TB, s *argon.Server, tool string, in any, opts ...CallOption) *argon.Result {
+	t.Helper()
 	cfg := callConfig{ctx: t.Context()}
 	for _, o := range opts {
 		o(&cfg)
@@ -53,18 +73,7 @@ func Call[Out any](t testing.TB, s *argon.Server, tool string, in any, opts ...C
 	if err != nil {
 		t.Fatalf("argontest: call %q: %v", tool, err)
 	}
-	text := joinText(res)
-	if res.IsError {
-		return zero, errors.New(text)
-	}
-	if p, ok := any(&zero).(*string); ok {
-		*p = text
-		return zero, nil
-	}
-	if err := json.Unmarshal([]byte(text), &zero); err != nil {
-		return zero, fmt.Errorf("argontest: decode output: %w", err)
-	}
-	return zero, nil
+	return res
 }
 
 // joinText concatenates the text blocks of r, ignoring other content.

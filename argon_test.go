@@ -124,3 +124,26 @@ func TestWithIdentityAndScopes(t *testing.T) {
 		t.Fatalf("admin scope: %v", err)
 	}
 }
+
+func TestMultiContentResult(t *testing.T) {
+	png := []byte{0x89, 'P', 'N', 'G'}
+	s := argon.New("test")
+	argon.Tool(s, "chart", "Draw a chart", func(context.Context, struct{}) (*argon.Result, error) {
+		return argon.NewResult(
+			argon.TextContent{Text: "here it is"},
+			argon.ImageContent{MIMEType: "image/png", Data: png},
+			argon.ResourceLink{URI: "file:///chart.csv", Name: "chart.csv"},
+		), nil
+	})
+	res := argontest.CallResult(t, s, "chart", struct{}{})
+	if res.IsError || len(res.Content) != 3 {
+		t.Fatalf("result = %+v", res)
+	}
+	img, ok := res.Content[1].(argon.ImageContent)
+	if !ok || img.MIMEType != "image/png" || string(img.Data) != string(png) {
+		t.Fatalf("image = %#v", res.Content[1])
+	}
+	if link, ok := res.Content[2].(argon.ResourceLink); !ok || link.URI != "file:///chart.csv" {
+		t.Fatalf("link = %#v", res.Content[2])
+	}
+}
