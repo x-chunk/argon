@@ -27,8 +27,8 @@ func ServeStdio(ctx context.Context, srv *mcp.Server, in io.ReadCloser, out io.W
 // request requires a valid bearer token and protected-resource metadata
 // (RFC 9728) is served.
 func HTTPHandler(srv *mcp.Server, ac *auth.Config) (http.Handler, error) {
-	// TODO(v0.1): decide what of StreamableHTTPOptions (stateless mode,
-	// session timeout, event store) Argon exposes.
+	// StreamableHTTPOptions are intentionally not exposed yet; SDK defaults
+	// apply (see the project backlog).
 	mcpHandler := http.Handler(mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return srv }, nil))
 	if ac == nil {
