@@ -53,6 +53,9 @@ Argon adds:
 | Transport auto-selection (`Run`) and stdout guard | `argon`, `internal/stdioguard` |
 | JWT/JWKS + introspection verifier, alg allowlist | `auth/oidc` |
 | Input validation against the inferred schema | `argon` |
+| Content blocks: text, image, resource link | `internal/core`, `internal/sdkadapter` |
+| Quiet logging (SDK filtered to Warn), opt-in call log | `argon`, `internal/core`, `internal/sdkadapter` |
+| Answer in-flight stdio requests before EOF shutdown | `internal/sdkadapter` (wire-level drain) |
 | Fake authorization server for tests | `argontest` |
 | Identity in context, claims mapping (`scope`/`scp`) | `auth` |
 | In-memory test helpers | `argontest` |
@@ -64,6 +67,12 @@ Argon adds:
 2. `sdkadapter` hands raw arguments to the core handler. Argon registers
    tools through the SDK's low-level API, so it validates arguments itself
    against the inferred schema (defaults applied) before decoding into `In`.
-3. `core` runs the middleware chain (global, then per-tool) and the user
-   handler.
+3. `core` runs the middleware chain and the user handler. Order, outermost
+   first: meta (attaches `Request.Meta`) → recover → global (call log first)
+   → scopes → timeout → max output → per-tool → handler.
 4. The result is packed into content blocks; errors become `isError`.
+
+## Deferred
+
+Tracked in the project backlog (Notion): Streamable HTTP options and
+resumability, resources, prompts, audio and embedded-resource content.
