@@ -173,3 +173,16 @@ func TestContentRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestMetadataPath(t *testing.T) {
+	for in, want := range map[string]string{
+		"":          "/.well-known/oauth-protected-resource",
+		"/":         "/.well-known/oauth-protected-resource",
+		"/mcp":      "/.well-known/oauth-protected-resource/mcp",
+		"/api/mcp/": "/.well-known/oauth-protected-resource/api/mcp",
+	} {
+		if got := metadataPath(in); got != want {
+			t.Errorf("metadataPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

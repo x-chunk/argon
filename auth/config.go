@@ -19,8 +19,11 @@ type Config struct {
 	Verifier TokenVerifier
 	// ClaimsMapper overrides DefaultClaimsMapper.
 	ClaimsMapper ClaimsMapper
-	// ResourceMetadataPath is where protected-resource metadata is served.
-	// Defaults to "/.well-known/oauth-protected-resource".
+	// ResourceMetadataPath is where protected-resource metadata is served,
+	// as an absolute path on the Audience origin. Defaults to the RFC 9728
+	// location derived from the Audience path:
+	// "/.well-known/oauth-protected-resource" plus that path (e.g.
+	// ".../oauth-protected-resource/mcp" for audience "https://host/mcp").
 	ResourceMetadataPath string
 }
 

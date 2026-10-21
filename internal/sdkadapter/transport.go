@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
@@ -44,26 +45,15 @@ func HTTPHandler(srv *mcp.Server, ac *auth.Config) (http.Handler, error) {
 		return nil, err
 	}
 
-	metaPath := ac.ResourceMetadataPath
-	if metaPath == "" {
-		metaPath = defaultResourceMetadataPath
-	}
-	metaURL, err := resourceMetadataURL(ac.Audience, metaPath)
+	meta, err := newResourceMetadata(ac)
 	if err != nil {
 		return nil, err
 	}
-	authServer := ac.AuthServer
-	if authServer == "" {
-		authServer = ac.Issuer
-	}
 
 	mux := http.NewServeMux()
-	mux.Handle(metaPath, sdkauth.ProtectedResourceMetadataHandler(&oauthex.ProtectedResourceMetadata{
-		Resource:             ac.Audience,
-		AuthorizationServers: nonEmpty(authServer),
-	}))
+	mux.Handle(meta.path, meta.handler)
 	mux.Handle("/", sdkauth.RequireBearerToken(verifier(ac.Verifier), &sdkauth.RequireBearerTokenOptions{
-		ResourceMetadataURL: metaURL,
+		ResourceMetadataURL: meta.url,
 		// Expiry is the Argon verifier's responsibility (see auth.TokenVerifier);
 		// static tokens legitimately have none.
 		AllowMissingExpiration: true,
@@ -96,12 +86,45 @@ func expiration(claims map[string]any) time.Time {
 	return time.Time{}
 }
 
-func resourceMetadataURL(audience, path string) (string, error) {
-	u, err := url.Parse(audience)
+// resourceMetadata is the protected-resource metadata endpoint (RFC 9728).
+type resourceMetadata struct {
+	path    string // absolute path on the resource's origin
+	url     string // advertised in WWW-Authenticate
+	handler http.Handler
+}
+
+func newResourceMetadata(ac *auth.Config) (*resourceMetadata, error) {
+	u, err := url.Parse(ac.Audience)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		return "", errors.New("auth: audience must be an absolute URL")
+		return nil, errors.New("auth: audience must be an absolute URL")
 	}
-	return fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, path), nil
+	path := ac.ResourceMetadataPath
+	if path == "" {
+		path = metadataPath(u.Path)
+	}
+	if !strings.HasPrefix(path, "/") {
+		return nil, fmt.Errorf("auth: ResourceMetadataPath %q must be an absolute path", path)
+	}
+	authServer := ac.AuthServer
+	if authServer == "" {
+		authServer = ac.Issuer
+	}
+	return &resourceMetadata{
+		path: path,
+		url:  fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, path),
+		handler: sdkauth.ProtectedResourceMetadataHandler(&oauthex.ProtectedResourceMetadata{
+			Resource:             ac.Audience,
+			AuthorizationServers: nonEmpty(authServer),
+		}),
+	}, nil
+}
+
+// metadataPath derives the well-known path for a resource path per RFC 9728
+// §3.1: the well-known segment is inserted between the host and the path, so
+// resource https://host/mcp has metadata at
+// https://host/.well-known/oauth-protected-resource/mcp.
+func metadataPath(resourcePath string) string {
+	return defaultResourceMetadataPath + strings.TrimSuffix(resourcePath, "/")
 }
 
 func nonEmpty(s string) []string {
