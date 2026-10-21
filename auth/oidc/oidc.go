@@ -17,14 +17,14 @@ package oidc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
+
 	"go.xchunk.org/argon/auth"
 )
-
-// ErrNotImplemented is returned while the verifier is a skeleton.
-var ErrNotImplemented = errors.New("oidc: not implemented")
 
 // DefaultAlgorithms is the default signature algorithm allowlist.
 var DefaultAlgorithms = []string{"RS256", "ES256", "EdDSA"}
@@ -67,7 +67,8 @@ func Introspection(clientID, clientSecret string) Option {
 }
 
 // NewVerifier discovers issuer metadata and returns a verifier for tokens
-// minted for audience.
+// minted for audience. It fetches the JWKS eagerly, so misconfiguration
+// fails at startup rather than on the first request.
 func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (auth.TokenVerifier, error) {
 	if issuer == "" || audience == "" {
 		return nil, errors.New("oidc: issuer and audience are required")
@@ -82,7 +83,50 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 	for _, o := range opts {
 		o(c)
 	}
-	// TODO(v0.1): discovery (OIDC, then RFC 8414), JWKS cache, JWT
-	// verification via a vetted library, introspection fallback.
-	return nil, ErrNotImplemented
+	algs, err := allowedAlgorithms(c.algorithms)
+	if err != nil {
+		return nil, err
+	}
+	md, err := discover(ctx, c.httpClient, issuer)
+	if err != nil {
+		return nil, err
+	}
+	v := &verifier{issuer: issuer, audience: audience, cfg: c, algs: algs, now: time.Now}
+	if md.JWKSURI != "" {
+		v.keys = newKeySet(md.JWKSURI, c.httpClient, c.minRefresh)
+		if err := v.keys.refresh(ctx); err != nil {
+			return nil, fmt.Errorf("oidc: fetch JWKS: %w", err)
+		}
+	}
+	if c.introspect != nil {
+		if md.IntrospectionEndpoint == "" {
+			return nil, errors.New("oidc: introspection requested but issuer advertises no introspection_endpoint")
+		}
+		v.introspectURL = md.IntrospectionEndpoint
+	}
+	if v.keys == nil && v.introspectURL == "" {
+		return nil, errors.New("oidc: issuer has no jwks_uri and introspection is not configured")
+	}
+	return v, nil
+}
+
+// allowedAlgorithms validates the allowlist: only asymmetric algorithms are
+// accepted, since Argon verifies with public keys from a JWKS.
+func allowedAlgorithms(names []string) ([]jose.SignatureAlgorithm, error) {
+	if len(names) == 0 {
+		return nil, errors.New("oidc: empty algorithm allowlist")
+	}
+	out := make([]jose.SignatureAlgorithm, 0, len(names))
+	for _, n := range names {
+		switch a := jose.SignatureAlgorithm(n); a {
+		case jose.RS256, jose.RS384, jose.RS512,
+			jose.PS256, jose.PS384, jose.PS512,
+			jose.ES256, jose.ES384, jose.ES512,
+			jose.EdDSA:
+			out = append(out, a)
+		default:
+			return nil, fmt.Errorf("oidc: algorithm %q not allowed (none and HMAC are never accepted)", n)
+		}
+	}
+	return out, nil
 }
