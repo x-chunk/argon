@@ -61,6 +61,20 @@ func HTTPHandler(srv *mcp.Server, ac *auth.Config) (http.Handler, error) {
 	return mux, nil
 }
 
+// ResourceMetadataHandler returns the protected-resource metadata endpoint
+// and the absolute path it must be served at. HTTPHandler already serves it
+// when mounted at the root; this is for mounting under a prefix.
+func ResourceMetadataHandler(ac *auth.Config) (path string, h http.Handler, err error) {
+	if err := ac.Validate(); err != nil {
+		return "", nil, err
+	}
+	meta, err := newResourceMetadata(ac)
+	if err != nil {
+		return "", nil, err
+	}
+	return meta.path, meta.handler, nil
+}
+
 // verifier adapts an Argon verifier to the SDK's bearer middleware. The
 // Argon identity rides along in TokenInfo.Extra and is restored in the tool
 // handler. Verification details are never sent to the client.

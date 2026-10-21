@@ -98,6 +98,16 @@ argon.Tool(s, "add_note", "Save a note", addNote, argon.Scopes("notes:write"))
   rejected.
 - Unauthenticated requests get `401` with a `WWW-Authenticate` header
   pointing at `/.well-known/oauth-protected-resource` (RFC 9728).
+- Mounting under a prefix: set `Audience` to the full endpoint URL and also
+  mount the metadata endpoint at the root, since its RFC 9728 path lives
+  outside the prefix:
+
+  ```go
+  h, _ := s.Handler()                     // Audience: "https://example.com/mcp"
+  path, meta, _ := s.ResourceMetadata()   // "/.well-known/oauth-protected-resource/mcp"
+  mux.Handle("/mcp", h)
+  mux.Handle(path, meta)
+  ```
 - `auth.Static(token, identity)` covers simple self-hosted setups.
 - Handlers read the caller with `argon.IdentityFrom(ctx)`.
 - `auth/oidc` is a separate package: stdio-only servers do not pull in JOSE.

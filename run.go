@@ -66,12 +66,34 @@ func (s *Server) RunHTTP(ctx context.Context, addr string) error {
 
 // Handler returns s as an http.Handler for embedding into an existing HTTP
 // server. Authentication configured via Auth is applied.
+//
+// The handler serves MCP on any path it receives, so it can be mounted
+// under a prefix (mux.Handle("/mcp", h)) without http.StripPrefix. With
+// Auth, set the Audience to the full endpoint URL (e.g.
+// "https://example.com/mcp") and also mount ResourceMetadata at the root
+// mux: the RFC 9728 metadata path lives outside the prefix.
 func (s *Server) Handler() (http.Handler, error) {
 	srv, err := s.build()
 	if err != nil {
 		return nil, err
 	}
 	return sdkadapter.HTTPHandler(srv, s.auth)
+}
+
+// ResourceMetadata returns the OAuth protected-resource metadata endpoint
+// (RFC 9728) and the absolute path to serve it at. Only needed when Handler
+// is mounted under a prefix; RunHTTP and root mounts serve it already.
+// It fails when Auth is not configured.
+//
+//	h, _ := s.Handler()
+//	path, meta, _ := s.ResourceMetadata()
+//	mux.Handle("/mcp", h)
+//	mux.Handle(path, meta)
+func (s *Server) ResourceMetadata() (path string, h http.Handler, err error) {
+	if s.auth == nil {
+		return "", nil, errors.New("argon: ResourceMetadata requires Auth")
+	}
+	return sdkadapter.ResourceMetadataHandler(s.auth)
 }
 
 func (s *Server) build() (*sdkadapter.Server, error) {
