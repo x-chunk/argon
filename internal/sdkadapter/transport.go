@@ -19,8 +19,14 @@ import (
 const defaultResourceMetadataPath = "/.well-known/oauth-protected-resource"
 
 // ServeStdio runs srv over in/out until the client disconnects or ctx ends.
+// When in reaches EOF, requests already received are answered before the
+// server stops (bounded by DrainTimeout).
 func ServeStdio(ctx context.Context, srv *mcp.Server, in io.ReadCloser, out io.WriteCloser) error {
-	return srv.Run(ctx, &mcp.IOTransport{Reader: in, Writer: out})
+	d := newDrain(ctx, DrainTimeout)
+	return srv.Run(ctx, &mcp.IOTransport{
+		Reader: &drainReader{d: d, r: in},
+		Writer: &drainWriter{d: d, w: out},
+	})
 }
 
 // HTTPHandler exposes srv over Streamable HTTP. When ac is non-nil, every MCP
