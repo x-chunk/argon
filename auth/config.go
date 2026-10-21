@@ -13,8 +13,9 @@ type Config struct {
 	// AuthServer is advertised in protected-resource metadata (RFC 9728).
 	// Defaults to Issuer.
 	AuthServer string
-	// Verifier validates tokens. If nil, a verifier is built from Issuer
-	// (see auth/oidc).
+	// Verifier validates tokens. Required. Use auth/oidc for issuer-driven
+	// JWT/JWKS verification, or Static for a pre-shared token. Keeping the
+	// verifier explicit lets stdio-only users avoid JOSE dependencies.
 	Verifier TokenVerifier
 	// ClaimsMapper overrides DefaultClaimsMapper.
 	ClaimsMapper ClaimsMapper
@@ -29,8 +30,8 @@ func (c *Config) Validate() error {
 	if c.Audience == "" {
 		return errors.New("auth: audience is required")
 	}
-	if c.Verifier == nil && c.Issuer == "" {
-		return errors.New("auth: either Verifier or Issuer must be set")
+	if c.Verifier == nil {
+		return errors.New("auth: Verifier is required")
 	}
 	return nil
 }
