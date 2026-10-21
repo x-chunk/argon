@@ -98,8 +98,3 @@ func (v *verifier) identity(claims map[string]any) *auth.Identity {
 	}
 	return id
 }
-
-// introspect is implemented in introspect.go.
-func (v *verifier) introspect(ctx context.Context, token string) (*auth.Identity, error) {
-	return nil, errors.New("introspection not implemented")
-}
