@@ -1,0 +1,22 @@
+# Keycloak for Argon integration tests (dev mode, HTTP, in-memory DB).
+#
+#   docker compose -f test/keycloak/compose.yaml up -d --wait
+#   go test -tags integration ./...
+#   docker compose -f test/keycloak/compose.yaml down
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm", "--http-port=8180", "--health-enabled=true"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "127.0.0.1:8180:8180"
+    volumes:
+      - ./realm-argon.json:/opt/keycloak/data/import/realm-argon.json:ro
+    healthcheck:
+      # Health endpoints live on the management port (9000) in Keycloak 25+.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
