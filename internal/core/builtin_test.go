@@ -2,8 +2,13 @@ package core
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"strings"
 	"testing"
+	"time"
+
+	"go.xchunk.org/argon/auth"
 )
 
 func textHandler(s string) Handler {
@@ -35,5 +40,80 @@ func TestMaxOutput(t *testing.T) {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestChainOrder(t *testing.T) {
+	var trace []string
+	mw := func(name string) Middleware {
+		return func(next Handler) Handler {
+			return func(ctx context.Context, r *Request) (*Result, error) {
+				trace = append(trace, name)
+				return next(ctx, r)
+			}
+		}
+	}
+	h := Chain(textHandler("ok"), mw("a"), mw("b"), mw("c"))
+	if _, err := h(context.Background(), &Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(trace, ""); got != "abc" {
+		t.Fatalf("order = %q, want abc", got)
+	}
+}
+
+func TestRecover(t *testing.T) {
+	h := Recover(slog.New(slog.DiscardHandler))(func(context.Context, *Request) (*Result, error) {
+		panic("boom")
+	})
+	res, err := h(context.Background(), &Request{Tool: "t"})
+	if err == nil || res != nil {
+		t.Fatalf("got %v, %v; want error", res, err)
+	}
+	if strings.Contains(err.Error(), "boom") {
+		t.Fatal("panic value must not leak to the client")
+	}
+}
+
+func TestTimeout(t *testing.T) {
+	h := Timeout(10 * time.Millisecond)(func(ctx context.Context, _ *Request) (*Result, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	if _, err := h(context.Background(), &Request{}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want deadline exceeded", err)
+	}
+}
+
+func TestRequireScopes(t *testing.T) {
+	h := RequireScopes("a", "b")(textHandler("ok"))
+	tests := []struct {
+		name string
+		id   *auth.Identity
+		ok   bool
+	}{
+		{"no identity", nil, false},
+		{"missing one", &auth.Identity{Scopes: []string{"a"}}, false},
+		{"all", &auth.Identity{Scopes: []string{"b", "a", "c"}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.id != nil {
+				ctx = auth.NewContext(ctx, tt.id)
+			}
+			_, err := h(ctx, &Request{Tool: "t"})
+			if (err == nil) != tt.ok {
+				t.Fatalf("err = %v, want ok=%v", err, tt.ok)
+			}
+		})
+	}
+}
+
+func TestBuildToolOverridesDefaults(t *testing.T) {
+	tool := &Tool{Name: "t", Handler: textHandler("12345"), MaxOutput: 3}
+	h := Build(tool, Defaults{MaxOutput: 100}, nil)
+	if _, err := h(context.Background(), &Request{Tool: "t"}); err == nil {
+		t.Fatal("per-tool MaxOutput must override the default")
 	}
 }
