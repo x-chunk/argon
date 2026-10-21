@@ -67,3 +67,32 @@ func TestDuplicateToolReported(t *testing.T) {
 		t.Fatal("want duplicate registration error")
 	}
 }
+
+type strictIn struct {
+	Name  string `json:"name"`
+	Count int    `json:"count,omitempty"`
+}
+
+func TestInputValidated(t *testing.T) {
+	s := argon.New("test")
+	called := false
+	argon.Tool(s, "strict", "Strict input", func(_ context.Context, in strictIn) (string, error) {
+		called = true
+		return in.Name, nil
+	})
+	for _, in := range []any{
+		map[string]any{},                           // missing required "name"
+		map[string]any{"name": 42},                 // wrong type
+		map[string]any{"name": "x", "extra": true}, // unknown property
+	} {
+		if _, err := argontest.Call[string](t, s, "strict", in); err == nil {
+			t.Errorf("input %v: want validation error", in)
+		}
+	}
+	if called {
+		t.Fatal("handler must not run on invalid input")
+	}
+	if got, err := argontest.Call[string](t, s, "strict", map[string]any{"name": "ok"}); err != nil || got != "ok" {
+		t.Fatalf("valid input: got %q, %v", got, err)
+	}
+}

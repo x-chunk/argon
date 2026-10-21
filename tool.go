@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
-
 	"go.xchunk.org/argon/internal/core"
 )
 
@@ -45,23 +43,22 @@ func newTool[In, Out any](name, description string, h func(context.Context, In) 
 	}
 	var outSchema json.RawMessage
 	if t := reflect.TypeFor[Out](); t.Kind() == reflect.Struct {
-		if outSchema, err = schemaFor[Out](); err != nil {
+		out, err := schemaFor[Out]()
+		if err != nil {
 			return nil, fmt.Errorf("argon: tool %q output schema: %w", name, err)
 		}
+		outSchema = out.raw
 	}
 	return &core.Tool{
 		Name:         name,
 		Description:  description,
-		InputSchema:  in,
+		InputSchema:  in.raw,
 		OutputSchema: outSchema,
 		Handler: func(ctx context.Context, req *core.Request) (*core.Result, error) {
 			var input In
-			if len(req.Arguments) > 0 {
-				if err := json.Unmarshal(req.Arguments, &input); err != nil {
-					return nil, fmt.Errorf("invalid arguments: %w", err)
-				}
+			if err := in.decode(req.Arguments, &input); err != nil {
+				return nil, err
 			}
-			// TODO(v0.1): validate req.Arguments against the input schema.
 			out, err := h(ctx, input)
 			if err != nil {
 				return nil, err
@@ -69,14 +66,6 @@ func newTool[In, Out any](name, description string, h func(context.Context, In) 
 			return pack(out)
 		},
 	}, nil
-}
-
-func schemaFor[T any]() (json.RawMessage, error) {
-	sc, err := jsonschema.For[T](nil)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(sc)
 }
 
 func ptr[T any](v T) *T { return &v }
