@@ -20,6 +20,8 @@ Side packages:
 - `auth/oidc` — discovery, JWKS and introspection verifier (pulls JWT deps).
 - `internal/stdioguard` — keeps stdout clean for the stdio transport.
 - `argontest` — in-memory calls, fake identities, fake issuer.
+- `internal/testhook` — lets `argontest` build an SDK server from an
+  `*argon.Server` without widening the public API.
 
 ## Dependency graph
 
@@ -29,7 +31,7 @@ argon ──► internal/core ──► auth
   │                    └────────► internal/core, auth
   └──► auth
 auth/oidc ──► auth
-argontest ──► argon, auth
+argontest ──► argon, auth, internal/testhook, internal/sdkadapter
 ```
 
 ## SDK vs Argon
