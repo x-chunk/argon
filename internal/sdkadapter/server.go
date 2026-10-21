@@ -35,7 +35,7 @@ func NewServer(cfg Config) *mcp.Server {
 		&mcp.Implementation{Name: cfg.Name, Version: cfg.Version},
 		&mcp.ServerOptions{
 			Instructions: cfg.Instructions,
-			Logger:       cfg.Logger,
+			Logger:       sdkLogger(cfg.Logger),
 			// Empty capabilities: tools are inferred; no legacy logging capability.
 			Capabilities: &mcp.ServerCapabilities{},
 		},

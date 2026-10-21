@@ -15,6 +15,7 @@ package argon
 import (
 	"errors"
 	"log/slog"
+	"os"
 	"time"
 
 	"go.xchunk.org/argon/auth"
@@ -34,6 +35,7 @@ type Server struct {
 	version      string
 	instructions string
 	logger       *slog.Logger
+	logCalls     bool
 
 	reg      *core.Registry
 	defaults core.Defaults
@@ -52,12 +54,18 @@ func New(name string, opts ...Option) *Server {
 	s := &Server{
 		name:     name,
 		version:  "dev",
-		logger:   slog.Default(),
 		reg:      core.NewRegistry(),
 		defaults: core.Defaults{Timeout: DefaultTimeout, MaxOutput: DefaultMaxOutput},
 	}
 	for _, o := range opts {
 		o(s)
+	}
+	if s.logger == nil {
+		s.logger = defaultLogger(s.logCalls)
+	}
+	if s.logCalls {
+		// Outermost global middleware, so it measures the whole call.
+		s.global = append([]Middleware{core.LogCalls(s.logger)}, s.global...)
 	}
 	s.defaults.Logger = s.logger
 	return s
@@ -73,7 +81,22 @@ func Version(v string) Option { return func(s *Server) { s.version = v } }
 func Instructions(text string) Option { return func(s *Server) { s.instructions = text } }
 
 // Logger sets the server logger. On stdio it must not write to stdout.
+//
+// By default Argon logs to stderr at Warn level (Info when LogCalls is set).
+// Records from the underlying SDK are always limited to Warn and above.
 func Logger(l *slog.Logger) Option { return func(s *Server) { s.logger = l } }
+
+// LogCalls logs every tool call (name, duration, error) at Info level.
+// Arguments and results are never logged.
+func LogCalls() Option { return func(s *Server) { s.logCalls = true } }
+
+func defaultLogger(verbose bool) *slog.Logger {
+	level := slog.LevelWarn
+	if verbose {
+		level = slog.LevelInfo
+	}
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+}
 
 // Timeout sets the default per-call timeout. Zero disables it.
 func Timeout(d time.Duration) Option { return func(s *Server) { s.defaults.Timeout = d } }
