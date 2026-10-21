@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/subtle"
 	"fmt"
+	"maps"
+	"slices"
 )
 
 // Static returns a verifier that accepts a single pre-shared bearer token and
@@ -14,7 +16,11 @@ func Static(token string, id Identity) TokenVerifier {
 		if token == "" || subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
 			return nil, fmt.Errorf("%w: static token mismatch", ErrInvalidToken)
 		}
-		out := id
-		return &out, nil
+		// Return a fresh copy so callers cannot mutate the configured identity.
+		return &Identity{
+			Subject: id.Subject,
+			Scopes:  slices.Clone(id.Scopes),
+			Claims:  maps.Clone(id.Claims),
+		}, nil
 	})
 }
