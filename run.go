@@ -100,13 +100,17 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 	if err := s.Err(); err != nil {
 		return nil, err
 	}
-	tools := s.reg.All()
-	if len(tools) == 0 {
-		return nil, errors.New("argon: no tools registered")
+	tools, resources := s.reg.All(), s.reg.Resources()
+	if len(tools) == 0 && len(resources) == 0 {
+		return nil, errors.New("argon: no tools or resources registered")
 	}
 	built := make([]sdkadapter.Tool, 0, len(tools))
 	for _, t := range tools {
 		built = append(built, sdkadapter.Tool{Def: t, Handler: core.Build(t, s.defaults, s.global)})
+	}
+	builtRes := make([]sdkadapter.Resource, 0, len(resources))
+	for _, r := range resources {
+		builtRes = append(builtRes, sdkadapter.Resource{Def: r, Handler: core.BuildResource(r, s.defaults)})
 	}
 	return sdkadapter.NewServer(sdkadapter.Config{
 		Name:         s.name,
@@ -114,6 +118,7 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 		Instructions: s.instructions,
 		Logger:       s.logger,
 		Tools:        built,
+		Resources:    builtRes,
 	}), nil
 }
 
