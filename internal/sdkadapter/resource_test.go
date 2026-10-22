@@ -114,3 +114,24 @@ func TestResourceOverHTTPWithAuth(t *testing.T) {
 		t.Fatalf("contents = %+v", res.Contents)
 	}
 }
+
+func TestResourceCacheScope(t *testing.T) {
+	read := func(id *auth.Identity) string {
+		cs, closeAll, err := session(t.Context(), resourceServer(t), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer closeAll()
+		res, err := cs.ReadResource(t.Context(), &mcp.ReadResourceParams{URI: "file:///readme.md"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.CacheScope
+	}
+	if got := read(nil); got != "public" {
+		t.Errorf("anonymous read: cacheScope = %q, want public", got)
+	}
+	if got := read(&auth.Identity{Subject: "u"}); got != "private" {
+		t.Errorf("authenticated read: cacheScope = %q, want private", got)
+	}
+}

@@ -40,6 +40,12 @@ func resourceHandler(d *core.Resource, h core.ResourceHandler) mcp.ResourceHandl
 		if id := identityFromExtra(req.Extra); id != nil {
 			ctx = auth.NewContext(ctx, id)
 		}
+		// Contents read on behalf of an authenticated caller must not be
+		// cached by intermediaries or shared with other users.
+		cacheScope := "public"
+		if auth.FromContext(ctx) != nil {
+			cacheScope = "private"
+		}
 		uri := req.Params.URI
 		params, ok := d.Match(uri)
 		if !ok {
@@ -52,7 +58,7 @@ func resourceHandler(d *core.Resource, h core.ResourceHandler) mcp.ResourceHandl
 		if err != nil {
 			return nil, err
 		}
-		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
+		return &mcp.ReadResourceResult{Cacheable: mcp.Cacheable{CacheScope: cacheScope}, Contents: []*mcp.ResourceContents{{
 			URI:      c.URI,
 			MIMEType: c.MIMEType,
 			Text:     c.Text,
