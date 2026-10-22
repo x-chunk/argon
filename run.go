@@ -100,9 +100,9 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 	if err := s.Err(); err != nil {
 		return nil, err
 	}
-	tools, resources := s.reg.All(), s.reg.Resources()
-	if len(tools) == 0 && len(resources) == 0 {
-		return nil, errors.New("argon: no tools or resources registered")
+	tools, resources, prompts := s.reg.All(), s.reg.Resources(), s.reg.Prompts()
+	if len(tools) == 0 && len(resources) == 0 && len(prompts) == 0 {
+		return nil, errors.New("argon: no tools, resources or prompts registered")
 	}
 	built := make([]sdkadapter.Tool, 0, len(tools))
 	for _, t := range tools {
@@ -112,6 +112,10 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 	for _, r := range resources {
 		builtRes = append(builtRes, sdkadapter.Resource{Def: r, Handler: core.BuildResource(r, s.defaults)})
 	}
+	builtPrompts := make([]sdkadapter.Prompt, 0, len(prompts))
+	for _, p := range prompts {
+		builtPrompts = append(builtPrompts, sdkadapter.Prompt{Def: p, Handler: core.BuildPrompt(p, s.defaults)})
+	}
 	return sdkadapter.NewServer(sdkadapter.Config{
 		Name:         s.name,
 		Version:      s.version,
@@ -119,6 +123,7 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 		Logger:       s.logger,
 		Tools:        built,
 		Resources:    builtRes,
+		Prompts:      builtPrompts,
 	}), nil
 }
 

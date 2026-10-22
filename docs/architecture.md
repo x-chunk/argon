@@ -54,12 +54,25 @@ Argon adds:
 | JWT/JWKS + introspection verifier, alg allowlist | `auth/oidc` |
 | Input validation against the inferred schema | `argon` |
 | Resources and URI templates with typed variables | `argon`, `internal/core`, `internal/sdkadapter` |
+| Prompts with typed, validated arguments | `argon`, `internal/core`, `internal/sdkadapter` |
 | Content blocks: text, image, resource link | `internal/core`, `internal/sdkadapter` |
 | Quiet logging (SDK filtered to Warn), opt-in call log | `argon`, `internal/core`, `internal/sdkadapter` |
 | Answer in-flight stdio requests before EOF shutdown | `internal/sdkadapter` (wire-level drain) |
 | Fake authorization server for tests | `argontest` |
 | Identity in context, claims mapping (`scope`/`scp`) | `auth` |
 | In-memory test helpers | `argontest` |
+
+## Request flow (prompts/get)
+
+1. The SDK routes the get to the registered prompt; on HTTP the caller
+   identity is restored as for tools.
+2. `core.BuildPrompt` applies recover → scopes → timeout, then checks every
+   message's role and content and the size limit. Tool middleware is not
+   involved.
+3. `argon` converts the string arguments to the argument struct's types
+   (shared with resource templates in `stringargs.go`) and validates them
+   against its schema; failures wrap `ErrInvalidArguments`.
+4. `ErrInvalidArguments` becomes the protocol's invalid-params error.
 
 ## Request flow (resources/read)
 
@@ -88,4 +101,4 @@ Argon adds:
 ## Deferred
 
 Tracked in the project backlog (Notion): Streamable HTTP options and
-resumability, prompts, audio and embedded-resource content.
+resumability, audio and embedded-resource content.

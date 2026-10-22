@@ -2,6 +2,7 @@ package argon
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -12,12 +13,12 @@ type noteRef struct {
 }
 
 func TestDecodeParams(t *testing.T) {
-	ps, err := paramsSchema[noteRef]()
+	ps, err := stringArgsSchema[noteRef]()
 	if err != nil {
 		t.Fatal(err)
 	}
 	var got noteRef
-	if err := ps.decodeParams(map[string]string{"folder": "work", "id": "42", "draft": "true"}, &got); err != nil {
+	if err := ps.decodeStrings(map[string]string{"folder": "work", "id": "42", "draft": "true"}, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got != (noteRef{Folder: "work", ID: 42, Draft: true}) {
@@ -28,7 +29,7 @@ func TestDecodeParams(t *testing.T) {
 		"not a bool":       {"folder": "w", "id": "1", "draft": "maybe"},
 		"missing required": {"folder": "w"},
 	} {
-		if err := ps.decodeParams(params, new(noteRef)); err == nil {
+		if err := ps.decodeStrings(params, new(noteRef)); err == nil {
 			t.Errorf("%s: want error", name)
 		}
 	}
@@ -72,5 +73,29 @@ func TestResourceRegistrationErrors(t *testing.T) {
 func TestEmptyServerFails(t *testing.T) {
 	if _, err := New("t").build(); err == nil {
 		t.Fatal("server with nothing registered must fail to build")
+	}
+}
+
+func TestStringArgsMetadata(t *testing.T) {
+	type args struct {
+		Code     string `json:"code" jsonschema:"code to review"`
+		Language string `json:"language,omitempty"`
+		Strict   bool   `json:"strict,omitempty"`
+	}
+	sa, err := stringArgsSchema[args]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(sa.order, ","); got != "code,language,strict" {
+		t.Errorf("order = %s, want struct field order", got)
+	}
+	if p := sa.props["code"]; !p.required || p.description != "code to review" {
+		t.Errorf("code = %+v", p)
+	}
+	if sa.props["language"].required {
+		t.Error("omitempty field must be optional")
+	}
+	if err := sa.decodeStrings(map[string]string{"code": "x", "nope": "y"}, new(args)); err == nil {
+		t.Error("unknown argument must be rejected")
 	}
 }

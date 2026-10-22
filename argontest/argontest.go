@@ -107,3 +107,21 @@ func ReadResource(t testing.TB, s *argon.Server, uri string, opts ...CallOption)
 	}
 	return *c, nil
 }
+
+// GetPrompt renders prompt name from s through an in-memory MCP session.
+// Arguments are passed as strings, as a client would send them. Rejected
+// arguments are reported as an error wrapping argon.ErrInvalidArguments;
+// setup failures fail the test. WithContext and WithIdentity apply as for
+// Call.
+func GetPrompt(t testing.TB, s *argon.Server, name string, args map[string]string, opts ...CallOption) ([]argon.PromptMessage, error) {
+	t.Helper()
+	cfg := callConfig{ctx: t.Context()}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	srv, err := testhook.BuildServer(s)
+	if err != nil {
+		t.Fatalf("argontest: build server: %v", err)
+	}
+	return sdkadapter.GetPromptInMemory(cfg.ctx, srv, name, args, cfg.id)
+}

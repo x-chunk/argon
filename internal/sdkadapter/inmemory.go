@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -59,6 +60,32 @@ func ReadInMemory(ctx context.Context, srv *Server, uri string, id *auth.Identit
 	}
 	c := res.Contents[0]
 	return &core.ResourceContents{URI: c.URI, MIMEType: c.MIMEType, Text: c.Text, Blob: c.Blob}, nil
+}
+
+// GetPromptInMemory renders prompt name from srv over an in-memory session.
+// Rejected arguments are reported as core.ErrInvalidArguments. Like
+// CallInMemory, srv must be freshly built when id is non-nil.
+func GetPromptInMemory(ctx context.Context, srv *Server, name string, args map[string]string, id *auth.Identity) ([]core.PromptMessage, error) {
+	cs, closeAll, err := session(ctx, srv, id)
+	if err != nil {
+		return nil, err
+	}
+	defer closeAll()
+	res, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{Name: name, Arguments: args})
+	if err != nil {
+		var rpcErr *jsonrpc.Error
+		if errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc.CodeInvalidParams {
+			// The server message already starts with the sentinel's text.
+			msg := strings.TrimPrefix(rpcErr.Message, core.ErrInvalidArguments.Error()+": ")
+			return nil, fmt.Errorf("%w: %s", core.ErrInvalidArguments, msg)
+		}
+		return nil, err
+	}
+	out := make([]core.PromptMessage, 0, len(res.Messages))
+	for _, m := range res.Messages {
+		out = append(out, core.PromptMessage{Role: core.Role(m.Role), Content: fromSDKContent(m.Content)})
+	}
+	return out, nil
 }
 
 // CallInMemory connects an in-memory client to srv, calls tool once and

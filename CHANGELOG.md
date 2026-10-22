@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org); until v1.0.0 the API may
 change between minor versions and previews.
 
+## [v0.1.0-preview.3] — Developer Preview 3
+
+Adds MCP prompts and raises the minimum Go version to 1.26.
+
+### Added
+
+- **Prompts**: `argon.Prompt[In]` registers a prompt whose arguments are the
+  fields of a struct (names, descriptions and required-ness from tags).
+  String arguments are converted to the field types and validated before
+  the handler runs; missing, unknown or malformed arguments yield invalid
+  params. Messages via `UserMessage`, `AssistantMessage` or any content
+  block, `ErrInvalidArguments`, and options `PromptTitle`, `PromptScopes`,
+  `PromptTimeout`, `PromptMaxOutput`. Prompts share the tools' safe
+  defaults and per-item scopes.
+- Servers may expose only prompts.
+- **`argontest.GetPrompt`** for rendering prompts in tests.
+
+### Changed
+
+- **Minimum Go version is now 1.26** (was 1.25), following the Go release
+  support policy; required by `golang.org/x/sys` v0.49.
+- Tested against Keycloak 26.8. Recent Keycloak versions only allow a client
+  to introspect tokens whose audience includes it; see the README note for
+  `oidc.Introspection`.
+
 ## [v0.1.0-preview.2] — Developer Preview 2
 
 Adds MCP resources.
@@ -65,5 +90,6 @@ First public preview. The API is not stable yet; feedback is welcome.
 - On non-Unix platforms stdout protection covers `os.Stdout` only.
 - Keycloak is the only real authorization server tested so far.
 
+[v0.1.0-preview.3]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.3
 [v0.1.0-preview.2]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.2
 [v0.1.0-preview.1]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.1
