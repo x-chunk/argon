@@ -7,7 +7,7 @@ Argon is a thin, opinionated layer over the official
 protocol; Argon owns ergonomics, safe defaults and token verification. SDK
 types never appear in Argon's API.
 
-> Status: **v0.1.0 Developer Preview 1** (`v0.1.0-preview.1`). The API may
+> Status: **v0.1.0 Developer Preview 2** (`v0.1.0-preview.2`). The API may
 > change before v1.0.0. See [CHANGELOG.md](CHANGELOG.md).
 
 ```
@@ -57,11 +57,50 @@ func main() {
 - Options: `ReadOnly()`, `Destructive()`, `Idempotent()`, `OpenWorld()`,
   `Title(..)`, `Scopes(..)`, `ToolTimeout(..)`, `ToolMaxOutput(..)`, `With(middleware...)`.
 
+## Resources
+
+Expose read-only data by URI. A fixed resource:
+
+```go
+argon.Resource(s, "file:///readme.md", "readme", "Project readme",
+	func(ctx context.Context) (argon.ResourceContents, error) {
+		return argon.TextResource(readme), nil
+	}, argon.MIMEType("text/markdown"))
+```
+
+A family of resources from an RFC 6570 URI template. Template variables
+decode into a struct, converted to the field types and validated like tool
+input; a URI that does not decode reads as "not found":
+
+```go
+type NoteRef struct {
+	ID int `json:"id"`
+}
+
+argon.ResourceTemplate(s, "notes://{id}", "note", "A note by id",
+	func(ctx context.Context, ref NoteRef) (argon.ResourceContents, error) {
+		n, ok := notes[ref.ID]
+		if !ok {
+			return argon.ResourceContents{}, argon.ErrResourceNotFound
+		}
+		return argon.TextResource(n), nil
+	})
+```
+
+- Return `argon.TextResource(..)` or `argon.BlobResource(mime, data)`;
+  the content URI defaults to the requested URI.
+- Options: `MIMEType`, `ResourceTitle`, `ResourceScopes`, `ResourceTimeout`,
+  `ResourceMaxOutput`.
+- Resources share the tools' safe defaults (timeout, size limit, panic
+  recovery). Tool middleware does not apply to them.
+- Reads made by an authenticated caller are marked `cacheScope: private`.
+- Test with `argontest.ReadResource(t, s, uri)`.
+
 ## Safe defaults
 
 | Default | Value | Override |
 |---|---|---|
-| Per-call timeout | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
+| Per-call timeout (tools and resources) | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
 | Result size limit | 1 MiB (oversized → error, never truncated) | `argon.MaxOutput(n)`, `argon.ToolMaxOutput(n)` |
 | Panic recovery | panics become error results, stack goes to logs | — |
 | stdout protection (stdio) | fd 1 redirected to stderr; protocol uses a private copy | — |

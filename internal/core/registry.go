@@ -10,16 +10,46 @@ import (
 // letters, digits, '_', '-' and '.'.
 var validName = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
 
-// Registry stores tools in registration order. It is safe for concurrent use.
+// Registry stores tools and resources in registration order. It is safe for
+// concurrent use.
 type Registry struct {
 	mu    sync.RWMutex
 	order []string
 	tools map[string]*Tool
+
+	resOrder  []string
+	resources map[string]*Resource
 }
 
 // NewRegistry returns an empty registry.
 func NewRegistry() *Registry {
-	return &Registry{tools: make(map[string]*Tool)}
+	return &Registry{tools: make(map[string]*Tool), resources: make(map[string]*Resource)}
+}
+
+// AddResource registers r, keyed by its URI or URI template.
+func (r *Registry) AddResource(res *Resource) error {
+	if err := res.validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, dup := r.resources[res.Key()]; dup {
+		return fmt.Errorf("argon: duplicate resource %q", res.Key())
+	}
+	r.resources[res.Key()] = res
+	r.resOrder = append(r.resOrder, res.Key())
+	return nil
+}
+
+// Resources returns resources and templates in registration order.
+func (r *Registry) Resources() []*Resource {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*Resource, 0, len(r.resOrder))
+	for _, k := range r.resOrder {
+		out = append(out, r.resources[k])
+	}
+	return out
 }
 
 // Add registers t. It fails on invalid or duplicate names and missing handlers.

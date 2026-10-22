@@ -86,3 +86,24 @@ func joinText(r *argon.Result) string {
 	}
 	return strings.Join(parts, "\n")
 }
+
+// ReadResource reads uri from s through an in-memory MCP session. A missing
+// resource is reported as an error wrapping argon.ErrResourceNotFound; other
+// read failures are returned as errors. Setup failures fail the test.
+// WithContext and WithIdentity apply as for Call.
+func ReadResource(t testing.TB, s *argon.Server, uri string, opts ...CallOption) (argon.ResourceContents, error) {
+	t.Helper()
+	cfg := callConfig{ctx: t.Context()}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	srv, err := testhook.BuildServer(s)
+	if err != nil {
+		t.Fatalf("argontest: build server: %v", err)
+	}
+	c, err := sdkadapter.ReadInMemory(cfg.ctx, srv, uri, cfg.id)
+	if err != nil {
+		return argon.ResourceContents{}, err
+	}
+	return *c, nil
+}

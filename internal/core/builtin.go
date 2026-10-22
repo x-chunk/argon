@@ -5,24 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"runtime/debug"
 	"time"
-
-	"go.xchunk.org/argon/auth"
 )
 
 // Recover turns a panic in the handler into an error result instead of a
 // dead server. The stack is logged; it is never sent to the client.
 func Recover(log *slog.Logger) Middleware {
 	return func(next Handler) Handler {
-		return func(ctx context.Context, req *Request) (res *Result, err error) {
-			defer func() {
-				if p := recover(); p != nil {
-					log.Error("tool panicked", "tool", req.Tool, "panic", p, "stack", string(debug.Stack()))
-					res, err = nil, fmt.Errorf("internal error in tool %q", req.Tool)
-				}
-			}()
-			return next(ctx, req)
+		return func(ctx context.Context, req *Request) (*Result, error) {
+			return guardPanic(log, "tool", req.Tool, func() (*Result, error) { return next(ctx, req) })
 		}
 	}
 }
@@ -35,7 +26,7 @@ func Timeout(d time.Duration) Middleware {
 			return next
 		}
 		return func(ctx context.Context, req *Request) (*Result, error) {
-			ctx, cancel := context.WithTimeout(ctx, d)
+			ctx, cancel := withTimeout(ctx, d)
 			defer cancel()
 			return next(ctx, req)
 		}
@@ -50,11 +41,8 @@ func RequireScopes(scopes ...string) Middleware {
 			return next
 		}
 		return func(ctx context.Context, req *Request) (*Result, error) {
-			id := auth.FromContext(ctx)
-			for _, s := range scopes {
-				if !id.HasScope(s) {
-					return nil, fmt.Errorf("insufficient scope for tool %q", req.Tool)
-				}
+			if err := checkScopes(ctx, "tool", req.Tool, scopes); err != nil {
+				return nil, err
 			}
 			return next(ctx, req)
 		}
@@ -76,10 +64,12 @@ func MaxOutput(n int) Middleware {
 			if err != nil || res == nil {
 				return res, err
 			}
-			if size, err := resultSize(res); err != nil {
+			size, err := resultSize(res)
+			if err != nil {
 				return nil, err
-			} else if size > n {
-				return nil, fmt.Errorf("tool %q output too large: %d bytes, limit %d", req.Tool, size, n)
+			}
+			if err := checkSize("tool", req.Tool, size, n); err != nil {
+				return nil, err
 			}
 			return res, nil
 		}
