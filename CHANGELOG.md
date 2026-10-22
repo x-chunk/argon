@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org); until v1.0.0 the API may
 change between minor versions and previews.
 
+## [Unreleased] — planned as v0.1.0-preview.3
+
+### Changed
+
+- **Minimum Go version is now 1.26** (was 1.25), following the Go release
+  support policy; required by `golang.org/x/sys` v0.49.
+- Tested against Keycloak 26.8. Recent Keycloak versions only allow a client
+  to introspect tokens whose audience includes it; see the README note for
+  `oidc.Introspection`.
+
 ## [v0.1.0-preview.2] — Developer Preview 2
 
 Adds MCP resources.
