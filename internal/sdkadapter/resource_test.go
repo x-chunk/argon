@@ -3,7 +3,10 @@ package sdkadapter
 import (
 	"context"
 	"errors"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"go.xchunk.org/argon/auth"
 	"go.xchunk.org/argon/internal/core"
@@ -86,5 +89,28 @@ func TestResourceScopes(t *testing.T) {
 	c, err := ReadInMemory(ctx, resourceServer(t), "secret://key", &auth.Identity{Scopes: []string{"admin"}})
 	if err != nil || len(c.Blob) != 3 || c.MIMEType != "application/octet-stream" {
 		t.Fatalf("blob = %+v, %v", c, err)
+	}
+}
+
+func TestResourceOverHTTPWithAuth(t *testing.T) {
+	ac := &auth.Config{
+		Issuer:   "https://issuer.example",
+		Audience: "https://mcp.example",
+		Verifier: auth.Static("admin-token", auth.Identity{Subject: "root", Scopes: []string{"admin"}}),
+	}
+	h, err := HTTPHandler(resourceServer(t), ac)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(h)
+	t.Cleanup(ts.Close)
+
+	cs := connect(t, ts.URL, "admin-token")
+	res, err := cs.ReadResource(t.Context(), &mcp.ReadResourceParams{URI: "secret://key"})
+	if err != nil {
+		t.Fatalf("scoped read with valid token: %v", err)
+	}
+	if len(res.Contents) != 1 || len(res.Contents[0].Blob) != 3 {
+		t.Fatalf("contents = %+v", res.Contents)
 	}
 }
