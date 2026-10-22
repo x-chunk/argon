@@ -35,6 +35,7 @@ type Config struct {
 	Logger       *slog.Logger
 	Tools        []Tool
 	Resources    []Resource
+	Prompts      []Prompt
 }
 
 // NewServer builds an SDK server exposing cfg.Tools.
@@ -53,6 +54,9 @@ func NewServer(cfg Config) *mcp.Server {
 	}
 	for _, r := range cfg.Resources {
 		addResource(srv, r)
+	}
+	for _, p := range cfg.Prompts {
+		addPrompt(srv, p)
 	}
 	return srv
 }
