@@ -20,6 +20,13 @@ type Tool struct {
 	Handler core.Handler
 }
 
+// Resource pairs a resource definition with its fully built handler
+// (see core.BuildResource).
+type Resource struct {
+	Def     *core.Resource
+	Handler core.ResourceHandler
+}
+
 // Config describes the server to build.
 type Config struct {
 	Name         string
@@ -27,6 +34,7 @@ type Config struct {
 	Instructions string
 	Logger       *slog.Logger
 	Tools        []Tool
+	Resources    []Resource
 }
 
 // NewServer builds an SDK server exposing cfg.Tools.
@@ -42,6 +50,9 @@ func NewServer(cfg Config) *mcp.Server {
 	)
 	for _, t := range cfg.Tools {
 		srv.AddTool(toSDKTool(t.Def), toolHandler(t.Def.Name, t.Handler))
+	}
+	for _, r := range cfg.Resources {
+		addResource(srv, r)
 	}
 	return srv
 }
@@ -70,7 +81,7 @@ func toSDKTool(t *core.Tool) *mcp.Tool {
 
 func toolHandler(name string, h core.Handler) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if id := identityFromRequest(req); id != nil {
+		if id := identityFromExtra(req.Extra); id != nil {
 			ctx = auth.NewContext(ctx, id)
 		}
 		res, err := h(ctx, &core.Request{Tool: name, Arguments: req.Params.Arguments})

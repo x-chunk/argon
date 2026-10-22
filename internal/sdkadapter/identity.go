@@ -10,10 +10,10 @@ import (
 // travels through the SDK's HTTP auth middleware.
 const identityKey = "argon.identity"
 
-func identityFromRequest(req *mcp.CallToolRequest) *auth.Identity {
-	if req.Extra == nil || req.Extra.TokenInfo == nil {
+func identityFromExtra(extra *mcp.RequestExtra) *auth.Identity {
+	if extra == nil || extra.TokenInfo == nil {
 		return nil
 	}
-	id, _ := req.Extra.TokenInfo.Extra[identityKey].(*auth.Identity)
+	id, _ := extra.TokenInfo.Extra[identityKey].(*auth.Identity)
 	return id
 }
