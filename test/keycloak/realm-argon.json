@@ -45,6 +45,12 @@
           "config": { "included.custom.audience": "http://localhost:9090", "access.token.claim": "true", "id.token.claim": "false" }
         },
         {
+          "name": "introspector-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "argon-mcp", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" }
+        },
+        {
           "name": "sub",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-sub-mapper",

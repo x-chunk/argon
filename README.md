@@ -156,6 +156,10 @@ Authorization servers tested end to end: **Keycloak 26** (JWT and
 introspection; see `test/keycloak` and `examples/auth`). Reports for other
 servers are welcome.
 
+Keycloak note: recent versions only let a client introspect tokens whose
+audience includes that client. When using `oidc.Introspection`, add an
+audience mapper for your server's client (see `test/keycloak/realm-argon.json`).
+
 stdio servers have no OAuth: they run as the user, and credentials for
 downstream services come from the environment.
 
