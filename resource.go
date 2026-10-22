@@ -2,10 +2,7 @@ package argon
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"reflect"
-	"strconv"
 	"time"
 
 	"go.xchunk.org/argon/internal/core"
@@ -76,7 +73,7 @@ func Resource(s *Server, uri, name, description string, h func(context.Context) 
 //			return argon.TextResource(n), nil
 //		})
 func ResourceTemplate[P any](s *Server, uriTemplate, name, description string, h func(context.Context, P) (ResourceContents, error), opts ...ResourceOption) {
-	sc, err := paramsSchema[P]()
+	sc, err := stringArgsSchema[P]()
 	if err != nil {
 		s.errs = append(s.errs, fmt.Errorf("argon: resource template %q: %w", uriTemplate, err))
 		return
@@ -87,7 +84,7 @@ func ResourceTemplate[P any](s *Server, uriTemplate, name, description string, h
 		Description: description,
 		Handler: func(ctx context.Context, req *core.ResourceRequest) (*core.ResourceContents, error) {
 			var p P
-			if err := sc.decodeParams(req.Params, &p); err != nil {
+			if err := sc.decodeStrings(req.Params, &p); err != nil {
 				return nil, fmt.Errorf("%w: %v", ErrResourceNotFound, err)
 			}
 			c, err := h(ctx, p)
@@ -101,7 +98,7 @@ func ResourceTemplate[P any](s *Server, uriTemplate, name, description string, h
 		return
 	}
 	for _, v := range r.Varnames() {
-		if _, ok := sc.props[v]; !ok {
+		if !sc.has(v) {
 			s.errs = append(s.errs, fmt.Errorf("argon: resource template %q: variable %q has no matching field in %T", uriTemplate, v, *new(P)))
 		}
 	}
@@ -116,58 +113,6 @@ func (s *Server) addResource(r *core.Resource, opts []ResourceOption) bool {
 		return false
 	}
 	return true
-}
-
-// paramSchema is the schema of a template parameter struct, with each
-// property's JSON type for converting string template values.
-type paramSchema struct {
-	*schema
-	props map[string]string // property name → JSON Schema type
-}
-
-func paramsSchema[P any]() (*paramSchema, error) {
-	if reflect.TypeFor[P]().Kind() != reflect.Struct {
-		return nil, fmt.Errorf("parameter type %s must be a struct", reflect.TypeFor[P]())
-	}
-	sc, err := schemaFor[P]()
-	if err != nil {
-		return nil, err
-	}
-	props := make(map[string]string)
-	for name, p := range sc.resolved.Schema().Properties {
-		props[name] = p.Type
-	}
-	return &paramSchema{schema: sc, props: props}, nil
-}
-
-// decodeParams converts template values to the property types, then
-// validates and decodes them like tool input.
-func (ps *paramSchema) decodeParams(params map[string]string, dst any) error {
-	m := make(map[string]any, len(params))
-	for k, v := range params {
-		val, err := convertParam(v, ps.props[k])
-		if err != nil {
-			return fmt.Errorf("variable %q: %w", k, err)
-		}
-		m[k] = val
-	}
-	args, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-	return ps.decode(args, dst)
-}
-
-func convertParam(v, typ string) (any, error) {
-	switch typ {
-	case "integer":
-		return strconv.ParseInt(v, 10, 64)
-	case "number":
-		return strconv.ParseFloat(v, 64)
-	case "boolean":
-		return strconv.ParseBool(v)
-	}
-	return v, nil
 }
 
 // MIMEType declares the resource's MIME type; it is listed to clients and
