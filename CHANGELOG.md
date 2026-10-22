@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org); until v1.0.0 the API may
 change between minor versions and previews.
 
-## [Unreleased] — planned as v0.1.0-preview.3
+## [v0.1.0-preview.3] — Developer Preview 3
+
+Adds MCP prompts and raises the minimum Go version to 1.26.
 
 ### Added
 
@@ -88,5 +90,6 @@ First public preview. The API is not stable yet; feedback is welcome.
 - On non-Unix platforms stdout protection covers `os.Stdout` only.
 - Keycloak is the only real authorization server tested so far.
 
+[v0.1.0-preview.3]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.3
 [v0.1.0-preview.2]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.2
 [v0.1.0-preview.1]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.1
