@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org); until v1.0.0 the API may
 change between minor versions and previews.
 
+## [Unreleased] — planned as v0.1.0-preview.2
+
+### Added
+
+- **Resources**: `argon.Resource` for fixed URIs and
+  `argon.ResourceTemplate[P]` for RFC 6570 URI templates whose variables
+  decode into a typed struct (converted to field types and validated via
+  its JSON Schema). Text and binary contents (`TextResource`,
+  `BlobResource`), `ErrResourceNotFound`, and options `MIMEType`,
+  `ResourceTitle`, `ResourceScopes`, `ResourceTimeout`, `ResourceMaxOutput`.
+  Resources share the tools' safe defaults and per-item scopes.
+- Servers may expose resources without any tools.
+- **`argontest.ReadResource`** for reading resources in tests.
+
+### Changed
+
+- Resource reads made by an authenticated caller are marked
+  `cacheScope: private` (the SDK defaults to `public`).
+
 ## [v0.1.0-preview.1] — Developer Preview 1
 
 First public preview. The API is not stable yet; feedback is welcome.
@@ -45,3 +64,4 @@ First public preview. The API is not stable yet; feedback is welcome.
 - Keycloak is the only real authorization server tested so far.
 
 [v0.1.0-preview.1]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.1
+[Unreleased]: https://github.com/x-chunk/argon/compare/v0.1.0-preview.1...HEAD
