@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"go.xchunk.org/argon"
@@ -97,5 +98,15 @@ func TestGetPromptContentAndScopes(t *testing.T) {
 	}
 	if l, ok := msgs[1].Content.(argon.ResourceLink); !ok || l.URI != "file:///diagram.png" {
 		t.Errorf("second = %#v, want resource link", msgs[1].Content)
+	}
+}
+
+func TestPromptArgumentErrorMessage(t *testing.T) {
+	_, err := argontest.GetPrompt(t, promptServer(), "code_review", map[string]string{"code": "x", "extra": "y"})
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if n := strings.Count(err.Error(), "invalid arguments"); n != 1 {
+		t.Fatalf("message %q repeats the prefix %d times", err, n)
 	}
 }

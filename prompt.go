@@ -75,7 +75,7 @@ func Prompt[In any](s *Server, name, description string, h func(context.Context,
 		Handler: func(ctx context.Context, req *core.PromptRequest) ([]core.PromptMessage, error) {
 			var in In
 			if err := sa.decodeStrings(req.Arguments, &in); err != nil {
-				return nil, fmt.Errorf("%w: %v", ErrInvalidArguments, err)
+				return nil, err // already wraps ErrInvalidArguments
 			}
 			return h(ctx, in)
 		},

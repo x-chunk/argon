@@ -32,26 +32,27 @@ func schemaFor[T any]() (*schema, error) {
 
 // decode validates args against the schema, applies defaults and decodes
 // the result into dst. Missing arguments are treated as an empty object.
+// Errors wrap ErrInvalidArguments.
 func (s *schema) decode(args json.RawMessage, dst any) error {
 	if len(args) == 0 || string(args) == "null" {
 		args = json.RawMessage("{}")
 	}
 	var m map[string]any
 	if err := json.Unmarshal(args, &m); err != nil {
-		return fmt.Errorf("invalid arguments: %w", err)
+		return fmt.Errorf("%w: %w", ErrInvalidArguments, err)
 	}
 	if err := s.resolved.ApplyDefaults(&m); err != nil {
-		return fmt.Errorf("invalid arguments: %w", err)
+		return fmt.Errorf("%w: %w", ErrInvalidArguments, err)
 	}
 	if err := s.resolved.Validate(m); err != nil {
-		return fmt.Errorf("invalid arguments: %w", err)
+		return fmt.Errorf("%w: %w", ErrInvalidArguments, err)
 	}
 	b, err := json.Marshal(m)
 	if err != nil {
 		return err
 	}
 	if err := json.Unmarshal(b, dst); err != nil {
-		return fmt.Errorf("invalid arguments: %w", err)
+		return fmt.Errorf("%w: %w", ErrInvalidArguments, err)
 	}
 	return nil
 }

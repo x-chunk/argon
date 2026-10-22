@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -74,7 +75,9 @@ func GetPromptInMemory(ctx context.Context, srv *Server, name string, args map[s
 	if err != nil {
 		var rpcErr *jsonrpc.Error
 		if errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc.CodeInvalidParams {
-			return nil, fmt.Errorf("%w: %s", core.ErrInvalidArguments, rpcErr.Message)
+			// The server message already starts with the sentinel's text.
+			msg := strings.TrimPrefix(rpcErr.Message, core.ErrInvalidArguments.Error()+": ")
+			return nil, fmt.Errorf("%w: %s", core.ErrInvalidArguments, msg)
 		}
 		return nil, err
 	}

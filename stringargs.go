@@ -66,13 +66,13 @@ func (sa *stringArgs) has(name string) bool {
 }
 
 // decodeStrings converts values to the property types, then validates and
-// decodes them into dst.
+// decodes them into dst. Errors wrap ErrInvalidArguments.
 func (sa *stringArgs) decodeStrings(values map[string]string, dst any) error {
 	m := make(map[string]any, len(values))
 	for k, v := range values {
 		val, err := convertString(v, sa.props[k].typ)
 		if err != nil {
-			return fmt.Errorf("%q: %w", k, err)
+			return fmt.Errorf("%w: %q: %w", ErrInvalidArguments, k, err)
 		}
 		m[k] = val
 	}
