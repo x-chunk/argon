@@ -96,11 +96,42 @@ argon.ResourceTemplate(s, "notes://{id}", "note", "A note by id",
 - Reads made by an authenticated caller are marked `cacheScope: private`.
 - Test with `argontest.ReadResource(t, s, uri)`.
 
+## Prompts
+
+Offer reusable prompt templates. Arguments are the fields of a struct:
+names from `json` tags, descriptions from `jsonschema` tags, and fields
+without `omitempty` are required. Clients send arguments as strings; they
+are converted to the field types and validated before your handler runs:
+
+```go
+type ReviewArgs struct {
+	Code     string `json:"code" jsonschema:"code to review"`
+	Language string `json:"language,omitempty"`
+}
+
+argon.Prompt(s, "code_review", "Review a piece of code",
+	func(ctx context.Context, a ReviewArgs) ([]argon.PromptMessage, error) {
+		return []argon.PromptMessage{
+			argon.UserMessage("Review this " + a.Language + " code:\n" + a.Code),
+		}, nil
+	}, argon.PromptTitle("Code review"))
+```
+
+- Messages: `argon.UserMessage(..)`, `argon.AssistantMessage(..)`, or
+  `argon.PromptMessage{Role: argon.RoleUser, Content: argon.ImageContent{..}}`
+  with any content block. Use `struct{}` for a prompt without arguments.
+- Missing, unknown or malformed arguments are rejected with "invalid
+  params"; handlers can reject input themselves with
+  `argon.ErrInvalidArguments`.
+- Options: `PromptTitle`, `PromptScopes`, `PromptTimeout`, `PromptMaxOutput`.
+  Prompts share the tools' safe defaults; tool middleware does not apply.
+- Test with `argontest.GetPrompt(t, s, name, args)`.
+
 ## Safe defaults
 
 | Default | Value | Override |
 |---|---|---|
-| Per-call timeout (tools and resources) | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
+| Per-call timeout (tools, resources, prompts) | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
 | Result size limit | 1 MiB (oversized → error, never truncated) | `argon.MaxOutput(n)`, `argon.ToolMaxOutput(n)` |
 | Panic recovery | panics become error results, stack goes to logs | — |
 | stdout protection (stdio) | fd 1 redirected to stderr; protocol uses a private copy | — |
