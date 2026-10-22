@@ -10,6 +10,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"slices"
@@ -23,6 +24,11 @@ import (
 
 type note struct {
 	Text string `json:"text" jsonschema:"note text"`
+}
+
+// noteRef addresses a note in the notes://{id} resource template.
+type noteRef struct {
+	ID int `json:"id"`
 }
 
 type notes struct {
@@ -62,8 +68,19 @@ func main() {
 		n.mu.Lock()
 		defer n.mu.Unlock()
 		n.list = append(n.list, in.Text)
-		return "saved", nil
+		return fmt.Sprintf("saved as notes://%d", len(n.list)), nil
 	}, argon.Scopes("notes:write"))
+
+	// Each note is also readable as a resource, notes://1, notes://2, ...
+	argon.ResourceTemplate(s, "notes://{id}", "note", "A saved note by number",
+		func(_ context.Context, ref noteRef) (argon.ResourceContents, error) {
+			n.mu.Lock()
+			defer n.mu.Unlock()
+			if ref.ID < 1 || ref.ID > len(n.list) {
+				return argon.ResourceContents{}, argon.ErrResourceNotFound
+			}
+			return argon.TextResource(n.list[ref.ID-1]), nil
+		}, argon.MIMEType("text/plain"), argon.ResourceScopes("notes:read"))
 
 	if err := s.RunHTTP(ctx, addr); err != nil {
 		log.Fatal(err)
