@@ -17,7 +17,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Latest stable Go, so govulncheck reports what users of a current
       # toolchain are exposed to, not issues long fixed in a newer patch.
       - uses: actions/setup-go@v5
@@ -63,7 +63,7 @@ jobs:
             go: stable
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve Go version
         id: go
         shell: bash
@@ -88,7 +88,7 @@ jobs:
     name: Integration (Keycloak)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve Go version
         id: go
         run: echo "version=$(sed -n 's/^go \([0-9]*\.[0-9]*\).*/\1.x/p' go.mod)" >> "$GITHUB_OUTPUT"
