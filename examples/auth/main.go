@@ -31,6 +31,11 @@ type noteRef struct {
 	ID int `json:"id"`
 }
 
+// summarizeArgs are the arguments of the summarize_notes prompt.
+type summarizeArgs struct {
+	Tone string `json:"tone,omitempty" jsonschema:"tone of the summary, e.g. formal or casual"`
+}
+
 type notes struct {
 	mu   sync.Mutex
 	list []string
@@ -81,6 +86,20 @@ func main() {
 			}
 			return argon.TextResource(n.list[ref.ID-1]), nil
 		}, argon.MIMEType("text/plain"), argon.ResourceScopes("notes:read"))
+
+	// A prompt that turns the saved notes into a summarization request.
+	argon.Prompt(s, "summarize_notes", "Ask the model to summarize the saved notes",
+		func(_ context.Context, a summarizeArgs) ([]argon.PromptMessage, error) {
+			n.mu.Lock()
+			defer n.mu.Unlock()
+			if len(n.list) == 0 {
+				return []argon.PromptMessage{argon.UserMessage("There are no notes yet.")}, nil
+			}
+			tone := cmp.Or(a.Tone, "neutral")
+			return []argon.PromptMessage{
+				argon.UserMessage("Summarize these notes in a " + tone + " tone:\n- " + strings.Join(n.list, "\n- ")),
+			}, nil
+		}, argon.PromptScopes("notes:read"))
 
 	if err := s.RunHTTP(ctx, addr); err != nil {
 		log.Fatal(err)
