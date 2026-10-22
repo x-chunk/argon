@@ -6,6 +6,19 @@ change between minor versions and previews.
 
 ## [Unreleased] — planned as v0.1.0-preview.3
 
+### Added
+
+- **Prompts**: `argon.Prompt[In]` registers a prompt whose arguments are the
+  fields of a struct (names, descriptions and required-ness from tags).
+  String arguments are converted to the field types and validated before
+  the handler runs; missing, unknown or malformed arguments yield invalid
+  params. Messages via `UserMessage`, `AssistantMessage` or any content
+  block, `ErrInvalidArguments`, and options `PromptTitle`, `PromptScopes`,
+  `PromptTimeout`, `PromptMaxOutput`. Prompts share the tools' safe
+  defaults and per-item scopes.
+- Servers may expose only prompts.
+- **`argontest.GetPrompt`** for rendering prompts in tests.
+
 ### Changed
 
 - **Minimum Go version is now 1.26** (was 1.25), following the Go release
