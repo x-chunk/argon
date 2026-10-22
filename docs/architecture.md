@@ -53,12 +53,25 @@ Argon adds:
 | Transport auto-selection (`Run`) and stdout guard | `argon`, `internal/stdioguard` |
 | JWT/JWKS + introspection verifier, alg allowlist | `auth/oidc` |
 | Input validation against the inferred schema | `argon` |
+| Resources and URI templates with typed variables | `argon`, `internal/core`, `internal/sdkadapter` |
 | Content blocks: text, image, resource link | `internal/core`, `internal/sdkadapter` |
 | Quiet logging (SDK filtered to Warn), opt-in call log | `argon`, `internal/core`, `internal/sdkadapter` |
 | Answer in-flight stdio requests before EOF shutdown | `internal/sdkadapter` (wire-level drain) |
 | Fake authorization server for tests | `argontest` |
 | Identity in context, claims mapping (`scope`/`scp`) | `auth` |
 | In-memory test helpers | `argontest` |
+
+## Request flow (resources/read)
+
+1. The SDK routes the read to the registered resource or template; on HTTP
+   the caller identity is restored as for tools.
+2. `sdkadapter` matches the URI against the template to extract variables.
+3. `core.BuildResource` applies recover → scopes → timeout → size limit and
+   defaults the content URI and MIME type. Tool middleware is not involved.
+4. For templates, `argon` converts variables to the parameter struct's types
+   and validates them against its schema; failures read as not found.
+5. `core.ErrResourceNotFound` becomes the protocol's resource-not-found
+   error; authenticated reads are marked `cacheScope: private`.
 
 ## Request flow (tools/call)
 
@@ -75,4 +88,4 @@ Argon adds:
 ## Deferred
 
 Tracked in the project backlog (Notion): Streamable HTTP options and
-resumability, resources, prompts, audio and embedded-resource content.
+resumability, prompts, audio and embedded-resource content.
