@@ -67,11 +67,14 @@ func scopesMiddleware(scopes ...string) Middleware {
 	}
 }
 
-// maxOutputMiddleware limits the total size of a result's content, in bytes: the sum
-// of all blocks (text, raw image bytes, link fields) plus the JSON encoding
-// of structured output. An oversized
-// result is replaced by an error, rather than truncated, because truncation
-// would silently break structured output. A non-positive n disables the limit.
+// maxOutputMiddleware limits the size of a result, in bytes: the sum of all
+// content blocks (text, raw image bytes, link fields) or the JSON encoding
+// of structured output, whichever is larger. Structured output is not added
+// on top of the content because tools that return a struct mirror it as a
+// JSON text block; counting both would halve their effective limit. An
+// oversized result is replaced by an error, rather than truncated, because
+// truncation would silently break structured output. A non-positive n
+// disables the limit.
 func maxOutputMiddleware(n int) Middleware {
 	return func(next Handler) Handler {
 		if n <= 0 {
@@ -104,7 +107,7 @@ func resultSize(r *Result) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("encode structured output: %w", err)
 		}
-		size += len(b)
+		size = max(size, len(b))
 	}
 	return size, nil
 }

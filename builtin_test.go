@@ -158,3 +158,20 @@ func TestMaxOutputCountsAllContent(t *testing.T) {
 		t.Fatal("image bytes must count towards the limit")
 	}
 }
+
+// A struct output travels as structured content and as its JSON text; the
+// limit must apply to the data once, not to both copies.
+func TestMaxOutputCountsStructuredOnce(t *testing.T) {
+	out := map[string]string{"k": strings.Repeat("x", 40)}
+	res, err := pack(out, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	size, err := resultSize(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := len(res.Content[0].(TextContent).Text); size != want {
+		t.Fatalf("size = %d, want %d (the JSON once)", size, want)
+	}
+}
