@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org); until v1.0.0 the API may
 change between minor versions and previews.
 
+## [Unreleased] — planned as v0.1.0-preview.4
+
+Fixes before the first release candidate; no new features.
+
+### Changed
+
+- Public types (`Request`, `Result`, `Content` and its blocks, `Handler`,
+  `Middleware`, `ToolMeta`, `Annotations`, `ResourceContents`,
+  `PromptMessage`, `Role`) are now defined in package `argon` instead of
+  being aliases to an internal package, so their fields and documentation
+  show in `go doc` and on pkg.go.dev. Names and behaviour are unchanged.
+
+### Fixed
+
+- Tools returning a pointer to a struct (`*T`) now declare `T`'s output
+  schema and send structured content, like tools returning `T`; a nil `*T`
+  is reported as a tool error.
+- The Streamable HTTP handler now logs its errors through the server logger
+  (Warn and above) instead of discarding them.
+
+### Added
+
+- Examples for pkg.go.dev and README badges.
+- Tests for `Run` (transport selection, SIGINT/SIGTERM, stdio EOF) and
+  `RunHTTP` (graceful shutdown, listen errors).
+
 ## [v0.1.0-preview.3] — Developer Preview 3
 
 Adds MCP prompts and raises the minimum Go version to 1.26.
