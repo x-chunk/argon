@@ -29,6 +29,10 @@ const (
 
 // Server is an MCP server definition: a set of tools plus policies.
 // It is transport-independent; see Run, RunStdio and RunHTTP.
+//
+// Register tools, resources and prompts before serving, from a single
+// goroutine. The set is fixed when Run*, Handler or argontest builds the
+// server: later registrations are not served by servers already built.
 type Server struct {
 	name         string
 	version      string
