@@ -40,6 +40,7 @@ jobs:
           flags=()
           case "$TAG" in
             *-preview.*) title="argon $TAG (Developer Preview ${TAG##*-preview.})"; flags+=(--prerelease) ;;
+            *-rc.*) title="argon $TAG (Release Candidate ${TAG##*-rc.})"; flags+=(--prerelease) ;;
             *-*) flags+=(--prerelease) ;;
           esac
           gh release create "$TAG" --verify-tag --title "$title" --notes-file notes.md "${flags[@]}"
