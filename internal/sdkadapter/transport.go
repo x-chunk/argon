@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,11 +34,12 @@ func ServeStdio(ctx context.Context, srv *mcp.Server, in io.ReadCloser, out io.W
 // HTTPHandler exposes srv over Streamable HTTP. When ac is non-nil, every MCP
 // request requires a valid bearer token and protected-resource metadata
 // (RFC 9728) is served.
-func HTTPHandler(srv *mcp.Server, ac *auth.Config) (http.Handler, error) {
-	// StreamableHTTPOptions are intentionally not exposed yet; SDK defaults
-	// apply (see the project backlog).
+//
+// log receives the HTTP layer's warnings and errors (filtered like the
+// server's SDK logs); nil discards them.
+func HTTPHandler(srv *mcp.Server, ac *auth.Config, log *slog.Logger) (http.Handler, error) {
 	mcpHandler := http.Handler(mcp.NewStreamableHTTPHandler(
-		func(*http.Request) *mcp.Server { return srv }, nil))
+		func(*http.Request) *mcp.Server { return srv }, streamableOptions(log)))
 	if ac == nil {
 		return mcpHandler, nil
 	}
@@ -73,6 +75,13 @@ func ResourceMetadataHandler(ac *auth.Config) (path string, h http.Handler, err 
 		return "", nil, err
 	}
 	return meta.path, meta.handler, nil
+}
+
+// streamableOptions configures the SDK's Streamable HTTP handler. Other
+// options are intentionally not exposed yet; SDK defaults apply (see the
+// roadmap). Without a logger the SDK discards its HTTP-layer errors.
+func streamableOptions(log *slog.Logger) *mcp.StreamableHTTPOptions {
+	return &mcp.StreamableHTTPOptions{Logger: sdkLogger(log)}
 }
 
 // verifier adapts an Argon verifier to the SDK's bearer middleware. The

@@ -95,7 +95,7 @@ func TestResourceOverHTTPWithAuth(t *testing.T) {
 		Audience: "https://mcp.example",
 		Verifier: auth.Static("admin-token", auth.Identity{Subject: "root", Scopes: []string{"admin"}}),
 	}
-	h, err := HTTPHandler(resourceServer(t), ac)
+	h, err := HTTPHandler(resourceServer(t), ac, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

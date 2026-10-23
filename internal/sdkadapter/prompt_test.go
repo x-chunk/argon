@@ -91,7 +91,7 @@ func TestPromptScopesOverHTTP(t *testing.T) {
 		Issuer:   "https://issuer.example",
 		Audience: "https://mcp.example",
 		Verifier: auth.Static("tok", auth.Identity{Subject: "root", Scopes: []string{"admin"}}),
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -91,7 +91,7 @@ func newHTTP(t *testing.T) *httptest.Server {
 			return nil, auth.ErrInvalidToken
 		}),
 	}
-	h, err := HTTPHandler(testServer(), ac)
+	h, err := HTTPHandler(testServer(), ac, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -76,7 +76,7 @@ func (s *Server) Handler() (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sdkadapter.HTTPHandler(srv, s.auth)
+	return sdkadapter.HTTPHandler(srv, s.auth, s.logger)
 }
 
 // ResourceMetadata returns the OAuth protected-resource metadata endpoint
