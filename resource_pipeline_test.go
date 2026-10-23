@@ -64,3 +64,12 @@ func TestBuildResourcePolicies(t *testing.T) {
 		t.Fatalf("not found must pass through: err = %v", err)
 	}
 }
+
+func TestBuildResourceRejectsTextAndBlob(t *testing.T) {
+	r := &resourceDef{URI: "file:///a", Name: "a", Handler: func(context.Context, *resourceRequest) (*ResourceContents, error) {
+		return &ResourceContents{Text: "a", Blob: []byte("b")}, nil
+	}}
+	if _, err := buildResource(r, policy{})(context.Background(), &resourceRequest{URI: "file:///a"}); err == nil {
+		t.Fatal("contents with both text and blob must be rejected")
+	}
+}
