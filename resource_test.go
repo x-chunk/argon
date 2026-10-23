@@ -3,6 +3,7 @@ package argon_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"go.xchunk.org/argon"
@@ -82,5 +83,19 @@ func TestResourcesAndToolsTogether(t *testing.T) {
 	}
 	if _, err := argontest.ReadResource(t, s, "notes://1"); err != nil {
 		t.Fatalf("resource: %v", err)
+	}
+}
+
+func TestTemplateRequiredFieldMustBeVariable(t *testing.T) {
+	type ref struct {
+		ID    int    `json:"id"`
+		Owner string `json:"owner"`
+	}
+	s := argon.New("test")
+	argon.ResourceTemplate(s, "notes://{id}", "note", "", func(context.Context, ref) (argon.ResourceContents, error) {
+		return argon.TextResource(""), nil
+	})
+	if err := s.Err(); err == nil || !strings.Contains(err.Error(), `"owner"`) {
+		t.Fatalf("err = %v, want a registration error for the unfilled required field", err)
 	}
 }
