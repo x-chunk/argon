@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -8,15 +8,18 @@ import (
 	"time"
 
 	"github.com/yosida95/uritemplate/v3"
+
+	"go.xchunk.org/argon/internal/errs"
 )
 
-// ErrResourceNotFound is returned by a resource handler when the requested
-// resource does not exist. The adapter maps it to the protocol's
-// "resource not found" error.
-var ErrResourceNotFound = errors.New("resource not found")
+// ErrResourceNotFound reports that a requested resource does not exist.
+// Return it (possibly wrapped) from a resource handler; the client receives
+// the protocol's "resource not found" error. Reads of URIs that match no
+// resource, or whose template variables do not decode, report it too.
+var ErrResourceNotFound = errs.ResourceNotFound
 
-// ResourceRequest is a single resources/read call as seen by the core.
-type ResourceRequest struct {
+// resourceRequest is a single resources/read call as seen by the pipeline.
+type resourceRequest struct {
 	// URI is the requested resource URI.
 	URI string
 	// Params holds the URI template variables matched from URI. It is nil
@@ -24,22 +27,26 @@ type ResourceRequest struct {
 	Params map[string]string
 }
 
-// ResourceContents is the content of a resource: either text or binary.
+// ResourceContents is what a resource handler returns: text or binary data
+// (see TextResource and BlobResource).
 type ResourceContents struct {
 	// URI of the content; defaults to the requested URI when empty.
-	URI      string
+	URI string
+	// MIMEType defaults to the resource's declared type (see MIMEType).
 	MIMEType string
-	Text     string
-	Blob     []byte
+	// Text holds text contents; leave empty for binary contents.
+	Text string
+	// Blob holds binary contents; Argon base64-encodes them on the wire.
+	Blob []byte
 }
 
 func (c *ResourceContents) size() int { return len(c.Text) + len(c.Blob) }
 
-// ResourceHandler reads a resource.
-type ResourceHandler func(ctx context.Context, req *ResourceRequest) (*ResourceContents, error)
+// resourceHandler reads a resource.
+type resourceHandler func(ctx context.Context, req *resourceRequest) (*ResourceContents, error)
 
-// Resource is a registered resource: either a fixed URI or a URI template.
-type Resource struct {
+// resourceDef is a registered resource: either a fixed URI or a URI template.
+type resourceDef struct {
 	// Exactly one of URI and URITemplate is set.
 	URI         string
 	URITemplate string
@@ -54,13 +61,13 @@ type Resource struct {
 	Timeout   time.Duration
 	MaxOutput int
 
-	Handler ResourceHandler
+	Handler resourceHandler
 
 	tmpl *uritemplate.Template // compiled URITemplate
 }
 
 // Key identifies the resource in the registry: its URI or URI template.
-func (r *Resource) Key() string {
+func (r *resourceDef) Key() string {
 	if r.URITemplate != "" {
 		return r.URITemplate
 	}
@@ -68,10 +75,10 @@ func (r *Resource) Key() string {
 }
 
 // IsTemplate reports whether r is a URI template.
-func (r *Resource) IsTemplate() bool { return r.URITemplate != "" }
+func (r *resourceDef) IsTemplate() bool { return r.URITemplate != "" }
 
 // Varnames returns the template's variable names (nil for fixed URIs).
-func (r *Resource) Varnames() []string {
+func (r *resourceDef) Varnames() []string {
 	if r.tmpl == nil {
 		return nil
 	}
@@ -80,7 +87,7 @@ func (r *Resource) Varnames() []string {
 
 // Match extracts template variables from uri. ok is false when uri does not
 // match the template.
-func (r *Resource) Match(uri string) (params map[string]string, ok bool) {
+func (r *resourceDef) Match(uri string) (params map[string]string, ok bool) {
 	if r.tmpl == nil {
 		return nil, uri == r.URI
 	}
@@ -98,7 +105,7 @@ func (r *Resource) Match(uri string) (params map[string]string, ok bool) {
 // validate checks the resource definition and compiles its template. URIs
 // must be absolute: the SDK panics on anything else, so we refuse earlier
 // with an error.
-func (r *Resource) validate() error {
+func (r *resourceDef) validate() error {
 	if (r.URI == "") == (r.URITemplate == "") {
 		return errors.New("argon: resource needs exactly one of URI and URI template")
 	}

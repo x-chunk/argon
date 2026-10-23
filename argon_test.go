@@ -147,3 +147,29 @@ func TestMultiContentResult(t *testing.T) {
 		t.Fatalf("link = %#v", res.Content[2])
 	}
 }
+
+type point struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+func TestPointerOutputIsStructured(t *testing.T) {
+	s := argon.New("test")
+	argon.Tool(s, "origin", "Origin point", func(context.Context, struct{}) (*point, error) {
+		return &point{X: 0, Y: 0}, nil
+	})
+	argon.Tool(s, "nowhere", "Returns nil", func(context.Context, struct{}) (*point, error) {
+		return nil, nil
+	})
+	res := argontest.CallResult(t, s, "origin", struct{}{})
+	if res.IsError || res.Structured == nil {
+		t.Fatalf("pointer output must carry structured content: %+v", res)
+	}
+	got, err := argontest.Call[point](t, s, "origin", struct{}{})
+	if err != nil || got != (point{}) {
+		t.Fatalf("decoded = %+v, %v", got, err)
+	}
+	if _, err := argontest.Call[point](t, s, "nowhere", struct{}{}); err == nil {
+		t.Fatal("nil pointer output with an output schema must be a tool error")
+	}
+}

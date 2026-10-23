@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// LogCalls logs every tool call at Info level: tool name, duration and, on
+// logCallsMiddleware logs every tool call at Info level: tool name, duration and, on
 // failure, the error. Arguments and results are never logged, since they may
 // carry user data or secrets.
-func LogCalls(log *slog.Logger) Middleware {
+func logCallsMiddleware(log *slog.Logger) Middleware {
 	return func(next Handler) Handler {
 		return func(ctx context.Context, req *Request) (*Result, error) {
 			start := time.Now()

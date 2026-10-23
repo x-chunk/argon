@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"fmt"
@@ -10,31 +10,31 @@ import (
 // letters, digits, '_', '-' and '.'.
 var validName = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
 
-// Registry stores tools, resources and prompts in registration order. It is safe for
+// registry stores tools, resources and prompts in registration order. It is safe for
 // concurrent use.
-type Registry struct {
+type registry struct {
 	mu    sync.RWMutex
 	order []string
-	tools map[string]*Tool
+	tools map[string]*toolDef
 
 	resOrder  []string
-	resources map[string]*Resource
+	resources map[string]*resourceDef
 
 	promptOrder []string
-	prompts     map[string]*Prompt
+	prompts     map[string]*promptDef
 }
 
-// NewRegistry returns an empty registry.
-func NewRegistry() *Registry {
-	return &Registry{
-		tools:     make(map[string]*Tool),
-		resources: make(map[string]*Resource),
-		prompts:   make(map[string]*Prompt),
+// newRegistry returns an empty registry.
+func newRegistry() *registry {
+	return &registry{
+		tools:     make(map[string]*toolDef),
+		resources: make(map[string]*resourceDef),
+		prompts:   make(map[string]*promptDef),
 	}
 }
 
 // AddPrompt registers p, keyed by its name.
-func (r *Registry) AddPrompt(p *Prompt) error {
+func (r *registry) AddPrompt(p *promptDef) error {
 	if err := p.validate(); err != nil {
 		return err
 	}
@@ -49,10 +49,10 @@ func (r *Registry) AddPrompt(p *Prompt) error {
 }
 
 // Prompts returns prompts in registration order.
-func (r *Registry) Prompts() []*Prompt {
+func (r *registry) Prompts() []*promptDef {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]*Prompt, 0, len(r.promptOrder))
+	out := make([]*promptDef, 0, len(r.promptOrder))
 	for _, n := range r.promptOrder {
 		out = append(out, r.prompts[n])
 	}
@@ -60,7 +60,7 @@ func (r *Registry) Prompts() []*Prompt {
 }
 
 // AddResource registers r, keyed by its URI or URI template.
-func (r *Registry) AddResource(res *Resource) error {
+func (r *registry) AddResource(res *resourceDef) error {
 	if err := res.validate(); err != nil {
 		return err
 	}
@@ -75,10 +75,10 @@ func (r *Registry) AddResource(res *Resource) error {
 }
 
 // Resources returns resources and templates in registration order.
-func (r *Registry) Resources() []*Resource {
+func (r *registry) Resources() []*resourceDef {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]*Resource, 0, len(r.resOrder))
+	out := make([]*resourceDef, 0, len(r.resOrder))
 	for _, k := range r.resOrder {
 		out = append(out, r.resources[k])
 	}
@@ -86,7 +86,7 @@ func (r *Registry) Resources() []*Resource {
 }
 
 // Add registers t. It fails on invalid or duplicate names and missing handlers.
-func (r *Registry) Add(t *Tool) error {
+func (r *registry) Add(t *toolDef) error {
 	if !validName.MatchString(t.Name) {
 		return fmt.Errorf("argon: invalid tool name %q", t.Name)
 	}
@@ -104,7 +104,7 @@ func (r *Registry) Add(t *Tool) error {
 }
 
 // Get returns the tool named name.
-func (r *Registry) Get(name string) (*Tool, bool) {
+func (r *registry) Get(name string) (*toolDef, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	t, ok := r.tools[name]
@@ -112,10 +112,10 @@ func (r *Registry) Get(name string) (*Tool, bool) {
 }
 
 // All returns the tools in registration order.
-func (r *Registry) All() []*Tool {
+func (r *registry) All() []*toolDef {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]*Tool, 0, len(r.order))
+	out := make([]*toolDef, 0, len(r.order))
 	for _, n := range r.order {
 		out = append(out, r.tools[n])
 	}

@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -6,11 +6,11 @@ import (
 	"log/slog"
 )
 
-// BuildPrompt assembles the effective handler for p: panic recovery
+// buildPrompt assembles the effective handler for p: panic recovery
 // (outermost), scopes, timeout, and the output size limit over all message
 // contents. It also checks that every message has a valid role and content.
 // Tool middleware does not apply to prompts.
-func BuildPrompt(p *Prompt, d Defaults) PromptHandler {
+func buildPrompt(p *promptDef, d policy) promptHandler {
 	timeout := d.Timeout
 	if p.Timeout != 0 {
 		timeout = p.Timeout
@@ -24,7 +24,7 @@ func BuildPrompt(p *Prompt, d Defaults) PromptHandler {
 		log = slog.Default()
 	}
 
-	return func(ctx context.Context, req *PromptRequest) ([]PromptMessage, error) {
+	return func(ctx context.Context, req *promptRequest) ([]PromptMessage, error) {
 		return guardPanic(log, "prompt", p.Name, func() ([]PromptMessage, error) {
 			if err := checkScopes(ctx, "prompt", p.Name, p.Scopes); err != nil {
 				return nil, err

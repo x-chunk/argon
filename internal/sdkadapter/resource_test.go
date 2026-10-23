@@ -4,42 +4,39 @@ import (
 	"context"
 	"errors"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"go.xchunk.org/argon/auth"
-	"go.xchunk.org/argon/internal/core"
+	"go.xchunk.org/argon/internal/errs"
 )
 
 func resourceServer(t *testing.T) *Server {
 	t.Helper()
-	reg := core.NewRegistry()
-	defs := []*core.Resource{
-		{URI: "file:///readme.md", Name: "readme", MIMEType: "text/markdown",
-			Handler: func(context.Context, *core.ResourceRequest) (*core.ResourceContents, error) {
-				return &core.ResourceContents{Text: "# Argon"}, nil
+	return NewServer(Config{Name: "t", Version: "0", Resources: []Resource{
+		{Def: ResourceDef{URI: "file:///readme.md", Name: "readme", MIMEType: "text/markdown"},
+			Read: func(_ context.Context, uri string) (*ResourceData, error) {
+				return &ResourceData{URI: uri, MIMEType: "text/markdown", Text: "# Argon"}, nil
 			}},
-		{URITemplate: "notes://{id}", Name: "note",
-			Handler: func(_ context.Context, r *core.ResourceRequest) (*core.ResourceContents, error) {
-				if r.Params["id"] == "missing" {
-					return nil, core.ErrResourceNotFound
+		{Def: ResourceDef{URITemplate: "notes://{id}", Name: "note"},
+			Read: func(_ context.Context, uri string) (*ResourceData, error) {
+				id := strings.TrimPrefix(uri, "notes://")
+				if id == "missing" {
+					return nil, errs.ResourceNotFound
 				}
-				return &core.ResourceContents{Text: "note " + r.Params["id"]}, nil
+				return &ResourceData{URI: uri, Text: "note " + id}, nil
 			}},
-		{URI: "secret://key", Name: "key", Scopes: []string{"admin"},
-			Handler: func(ctx context.Context, _ *core.ResourceRequest) (*core.ResourceContents, error) {
-				return &core.ResourceContents{Blob: []byte{1, 2, 3}, MIMEType: "application/octet-stream"}, nil
+		// Argon checks scopes above the adapter; this stands in for it.
+		{Def: ResourceDef{URI: "secret://key", Name: "key"},
+			Read: func(ctx context.Context, uri string) (*ResourceData, error) {
+				if !auth.FromContext(ctx).HasScope("admin") {
+					return nil, errors.New("insufficient scope")
+				}
+				return &ResourceData{URI: uri, Blob: []byte{1, 2, 3}, MIMEType: "application/octet-stream"}, nil
 			}},
-	}
-	var rs []Resource
-	for _, d := range defs {
-		if err := reg.AddResource(d); err != nil {
-			t.Fatal(err)
-		}
-		rs = append(rs, Resource{Def: d, Handler: core.BuildResource(d, core.Defaults{})})
-	}
-	return NewServer(Config{Name: "t", Version: "0", Resources: rs})
+	}})
 }
 
 func TestResourceList(t *testing.T) {
@@ -75,7 +72,7 @@ func TestResourceRead(t *testing.T) {
 		t.Fatalf("note = %+v, %v", c, err)
 	}
 	for _, uri := range []string{"notes://missing", "nothing://here"} {
-		if _, err := ReadInMemory(ctx, resourceServer(t), uri, nil); !errors.Is(err, core.ErrResourceNotFound) {
+		if _, err := ReadInMemory(ctx, resourceServer(t), uri, nil); !errors.Is(err, errs.ResourceNotFound) {
 			t.Errorf("%s: err = %v, want ErrResourceNotFound", uri, err)
 		}
 	}
@@ -98,7 +95,7 @@ func TestResourceOverHTTPWithAuth(t *testing.T) {
 		Audience: "https://mcp.example",
 		Verifier: auth.Static("admin-token", auth.Identity{Subject: "root", Scopes: []string{"admin"}}),
 	}
-	h, err := HTTPHandler(resourceServer(t), ac)
+	h, err := HTTPHandler(resourceServer(t), ac, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

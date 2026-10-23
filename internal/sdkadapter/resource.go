@@ -7,16 +7,16 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"go.xchunk.org/argon/auth"
-	"go.xchunk.org/argon/internal/core"
+	"go.xchunk.org/argon/internal/errs"
 )
 
-// addResource registers r as a fixed resource or a resource template.
-// Definitions are validated by core.Registry, so the SDK's panics on invalid
-// URIs cannot trigger here.
+// addResource registers r as a fixed resource or a resource template. URIs
+// are validated before they reach the adapter, so the SDK's panics on
+// invalid URIs cannot trigger here.
 func addResource(srv *mcp.Server, r Resource) {
 	d := r.Def
-	h := resourceHandler(d, r.Handler)
-	if d.IsTemplate() {
+	h := resourceHandler(r.Read)
+	if d.URITemplate != "" {
 		srv.AddResourceTemplate(&mcp.ResourceTemplate{
 			URITemplate: d.URITemplate,
 			Name:        d.Name,
@@ -35,7 +35,7 @@ func addResource(srv *mcp.Server, r Resource) {
 	}, h)
 }
 
-func resourceHandler(d *core.Resource, h core.ResourceHandler) mcp.ResourceHandler {
+func resourceHandler(read func(context.Context, string) (*ResourceData, error)) mcp.ResourceHandler {
 	return func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		if id := identityFromExtra(req.Extra); id != nil {
 			ctx = auth.NewContext(ctx, id)
@@ -47,12 +47,8 @@ func resourceHandler(d *core.Resource, h core.ResourceHandler) mcp.ResourceHandl
 			cacheScope = "private"
 		}
 		uri := req.Params.URI
-		params, ok := d.Match(uri)
-		if !ok {
-			return nil, mcp.ResourceNotFoundError(uri)
-		}
-		c, err := h(ctx, &core.ResourceRequest{URI: uri, Params: params})
-		if errors.Is(err, core.ErrResourceNotFound) {
+		c, err := read(ctx, uri)
+		if errors.Is(err, errs.ResourceNotFound) {
 			return nil, mcp.ResourceNotFoundError(uri)
 		}
 		if err != nil {

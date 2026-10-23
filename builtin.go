@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// Recover turns a panic in the handler into an error result instead of a
+// recoverMiddleware turns a panic in the handler into an error result instead of a
 // dead server. The stack is logged; it is never sent to the client.
-func Recover(log *slog.Logger) Middleware {
+func recoverMiddleware(log *slog.Logger) Middleware {
 	return func(next Handler) Handler {
 		return func(ctx context.Context, req *Request) (*Result, error) {
 			return guardPanic(log, "tool", req.Tool, func() (*Result, error) { return next(ctx, req) })
@@ -18,9 +18,9 @@ func Recover(log *slog.Logger) Middleware {
 	}
 }
 
-// Timeout bounds a call's duration via context cancellation.
+// timeoutMiddleware bounds a call's duration via context cancellation.
 // A non-positive d disables the limit.
-func Timeout(d time.Duration) Middleware {
+func timeoutMiddleware(d time.Duration) Middleware {
 	return func(next Handler) Handler {
 		if d <= 0 {
 			return next
@@ -33,9 +33,9 @@ func Timeout(d time.Duration) Middleware {
 	}
 }
 
-// RequireScopes rejects calls whose identity lacks any of scopes.
+// scopesMiddleware rejects calls whose identity lacks any of scopes.
 // With no scopes it is a no-op.
-func RequireScopes(scopes ...string) Middleware {
+func scopesMiddleware(scopes ...string) Middleware {
 	return func(next Handler) Handler {
 		if len(scopes) == 0 {
 			return next
@@ -49,12 +49,12 @@ func RequireScopes(scopes ...string) Middleware {
 	}
 }
 
-// MaxOutput limits the total size of a result's content, in bytes: the sum
+// maxOutputMiddleware limits the total size of a result's content, in bytes: the sum
 // of all blocks (text, raw image bytes, link fields) plus the JSON encoding
 // of structured output. An oversized
 // result is replaced by an error, rather than truncated, because truncation
 // would silently break structured output. A non-positive n disables the limit.
-func MaxOutput(n int) Middleware {
+func maxOutputMiddleware(n int) Middleware {
 	return func(next Handler) Handler {
 		if n <= 0 {
 			return next

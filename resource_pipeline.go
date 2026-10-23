@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -6,11 +6,11 @@ import (
 	"log/slog"
 )
 
-// BuildResource assembles the effective handler for r. It applies the same
+// buildResource assembles the effective handler for r. It applies the same
 // policies as tools — panic recovery (outermost), scopes, timeout and output
 // size — and fills in the content URI and MIME type when the handler leaves
 // them empty. Tool middleware does not apply to resources.
-func BuildResource(r *Resource, d Defaults) ResourceHandler {
+func buildResource(r *resourceDef, d policy) resourceHandler {
 	timeout := d.Timeout
 	if r.Timeout != 0 {
 		timeout = r.Timeout
@@ -25,7 +25,7 @@ func BuildResource(r *Resource, d Defaults) ResourceHandler {
 	}
 	name := r.Key()
 
-	return func(ctx context.Context, req *ResourceRequest) (*ResourceContents, error) {
+	return func(ctx context.Context, req *resourceRequest) (*ResourceContents, error) {
 		return guardPanic(log, "resource", name, func() (*ResourceContents, error) {
 			if err := checkScopes(ctx, "resource", name, r.Scopes); err != nil {
 				return nil, err

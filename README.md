@@ -1,5 +1,9 @@
 # argon
 
+[![CI](https://github.com/x-chunk/argon/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/x-chunk/argon/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/go.xchunk.org/argon.svg)](https://pkg.go.dev/go.xchunk.org/argon)
+[![Release](https://img.shields.io/github/v/release/x-chunk/argon?include_prereleases&sort=semver)](https://github.com/x-chunk/argon/releases)
+
 MCP framework for Go: build Model Context Protocol servers in a few lines.
 
 Argon is a thin, opinionated layer over the official
@@ -7,7 +11,7 @@ Argon is a thin, opinionated layer over the official
 protocol; Argon owns ergonomics, safe defaults and token verification. SDK
 types never appear in Argon's API.
 
-> Status: **v0.1.0 Developer Preview 3** (`v0.1.0-preview.3`). The API may
+> Status: **v0.1.0 Developer Preview 4** (`v0.1.0-preview.4`). The API may
 > change before v1.0.0. See [CHANGELOG.md](CHANGELOG.md).
 
 ```

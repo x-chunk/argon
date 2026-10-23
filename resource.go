@@ -4,19 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"go.xchunk.org/argon/internal/core"
 )
-
-// ResourceContents is what a resource handler returns: text or binary data.
-// URI defaults to the requested URI and MIMEType to the resource's declared
-// type (see MIMEType).
-type ResourceContents = core.ResourceContents
-
-// ErrResourceNotFound is returned (possibly wrapped) by a resource handler
-// when the requested resource does not exist; the client receives the
-// protocol's "resource not found" error.
-var ErrResourceNotFound = core.ErrResourceNotFound
 
 // TextResource returns text contents.
 func TextResource(text string) ResourceContents { return ResourceContents{Text: text} }
@@ -27,7 +15,7 @@ func BlobResource(mimeType string, data []byte) ResourceContents {
 }
 
 // ResourceOption configures a resource or resource template.
-type ResourceOption func(*core.Resource)
+type ResourceOption func(*resourceDef)
 
 // Resource registers a resource with a fixed, absolute URI on s.
 //
@@ -40,11 +28,11 @@ type ResourceOption func(*core.Resource)
 // panic recovery) and may require scopes. Tool middleware does not apply.
 // Registration errors are reported by Run*.
 func Resource(s *Server, uri, name, description string, h func(context.Context) (ResourceContents, error), opts ...ResourceOption) {
-	s.addResource(&core.Resource{
+	s.addResource(&resourceDef{
 		URI:         uri,
 		Name:        name,
 		Description: description,
-		Handler: func(ctx context.Context, _ *core.ResourceRequest) (*core.ResourceContents, error) {
+		Handler: func(ctx context.Context, _ *resourceRequest) (*ResourceContents, error) {
 			c, err := h(ctx)
 			if err != nil {
 				return nil, err
@@ -78,11 +66,11 @@ func ResourceTemplate[P any](s *Server, uriTemplate, name, description string, h
 		s.errs = append(s.errs, fmt.Errorf("argon: resource template %q: %w", uriTemplate, err))
 		return
 	}
-	r := &core.Resource{
+	r := &resourceDef{
 		URITemplate: uriTemplate,
 		Name:        name,
 		Description: description,
-		Handler: func(ctx context.Context, req *core.ResourceRequest) (*core.ResourceContents, error) {
+		Handler: func(ctx context.Context, req *resourceRequest) (*ResourceContents, error) {
 			var p P
 			if err := sc.decodeStrings(req.Params, &p); err != nil {
 				return nil, fmt.Errorf("%w: %v", ErrResourceNotFound, err)
@@ -104,7 +92,7 @@ func ResourceTemplate[P any](s *Server, uriTemplate, name, description string, h
 	}
 }
 
-func (s *Server) addResource(r *core.Resource, opts []ResourceOption) bool {
+func (s *Server) addResource(r *resourceDef, opts []ResourceOption) bool {
 	for _, o := range opts {
 		o(r)
 	}
@@ -117,19 +105,19 @@ func (s *Server) addResource(r *core.Resource, opts []ResourceOption) bool {
 
 // MIMEType declares the resource's MIME type; it is listed to clients and
 // used for contents that do not set their own.
-func MIMEType(m string) ResourceOption { return func(r *core.Resource) { r.MIMEType = m } }
+func MIMEType(m string) ResourceOption { return func(r *resourceDef) { r.MIMEType = m } }
 
 // ResourceTitle sets a human-readable title.
-func ResourceTitle(t string) ResourceOption { return func(r *core.Resource) { r.Title = t } }
+func ResourceTitle(t string) ResourceOption { return func(r *resourceDef) { r.Title = t } }
 
 // ResourceScopes requires the caller to hold all of the given scopes
 // (HTTP + auth only).
 func ResourceScopes(scopes ...string) ResourceOption {
-	return func(r *core.Resource) { r.Scopes = append(r.Scopes, scopes...) }
+	return func(r *resourceDef) { r.Scopes = append(r.Scopes, scopes...) }
 }
 
 // ResourceTimeout overrides the server default timeout for this resource.
-func ResourceTimeout(d time.Duration) ResourceOption { return func(r *core.Resource) { r.Timeout = d } }
+func ResourceTimeout(d time.Duration) ResourceOption { return func(r *resourceDef) { r.Timeout = d } }
 
 // ResourceMaxOutput overrides the server default size limit for this resource.
-func ResourceMaxOutput(n int) ResourceOption { return func(r *core.Resource) { r.MaxOutput = n } }
+func ResourceMaxOutput(n int) ResourceOption { return func(r *resourceDef) { r.MaxOutput = n } }

@@ -17,3 +17,17 @@ func TestSDKLoggerFiltersInfo(t *testing.T) {
 		t.Fatalf("output = %q", out)
 	}
 }
+
+func TestStreamableOptionsLogger(t *testing.T) {
+	if got := streamableOptions(nil).Logger; got != nil {
+		t.Fatalf("nil logger must stay nil (SDK discards), got %v", got)
+	}
+	var buf bytes.Buffer
+	opts := streamableOptions(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	opts.Logger.Info("noise")
+	opts.Logger.Error("failed to connect")
+	out := buf.String()
+	if strings.Contains(out, "noise") || !strings.Contains(out, "failed to connect") {
+		t.Fatalf("HTTP-layer logs must reach the server logger, filtered to Warn+: %q", out)
+	}
+}

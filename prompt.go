@@ -4,28 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"go.xchunk.org/argon/internal/core"
 )
-
-// PromptMessage is one message of a rendered prompt: a role and a content
-// block (TextContent, ImageContent or ResourceLink).
-type PromptMessage = core.PromptMessage
-
-// Role is the speaker of a prompt message.
-type Role = core.Role
-
-// Prompt message roles.
-const (
-	RoleUser      = core.RoleUser
-	RoleAssistant = core.RoleAssistant
-)
-
-// ErrInvalidArguments may be returned (possibly wrapped) by a prompt handler
-// to reject its arguments; the client receives the protocol's
-// "invalid params" error. Missing, unknown and malformed arguments are
-// rejected automatically before the handler runs.
-var ErrInvalidArguments = core.ErrInvalidArguments
 
 // UserMessage returns a text message from the user.
 func UserMessage(text string) PromptMessage {
@@ -38,7 +17,7 @@ func AssistantMessage(text string) PromptMessage {
 }
 
 // PromptOption configures a prompt.
-type PromptOption func(*core.Prompt)
+type PromptOption func(*promptDef)
 
 // Prompt registers a prompt template on s.
 //
@@ -69,10 +48,10 @@ func Prompt[In any](s *Server, name, description string, h func(context.Context,
 		s.errs = append(s.errs, fmt.Errorf("argon: prompt %q: %w", name, err))
 		return
 	}
-	p := &core.Prompt{
+	p := &promptDef{
 		Name:        name,
 		Description: description,
-		Handler: func(ctx context.Context, req *core.PromptRequest) ([]core.PromptMessage, error) {
+		Handler: func(ctx context.Context, req *promptRequest) ([]PromptMessage, error) {
 			var in In
 			if err := sa.decodeStrings(req.Arguments, &in); err != nil {
 				return nil, err // already wraps ErrInvalidArguments
@@ -82,7 +61,7 @@ func Prompt[In any](s *Server, name, description string, h func(context.Context,
 	}
 	for _, n := range sa.order {
 		prop := sa.props[n]
-		p.Arguments = append(p.Arguments, core.PromptArgument{Name: n, Description: prop.description, Required: prop.required})
+		p.Arguments = append(p.Arguments, promptArgument{Name: n, Description: prop.description, Required: prop.required})
 	}
 	for _, o := range opts {
 		o(p)
@@ -93,16 +72,16 @@ func Prompt[In any](s *Server, name, description string, h func(context.Context,
 }
 
 // PromptTitle sets a human-readable title.
-func PromptTitle(t string) PromptOption { return func(p *core.Prompt) { p.Title = t } }
+func PromptTitle(t string) PromptOption { return func(p *promptDef) { p.Title = t } }
 
 // PromptScopes requires the caller to hold all of the given scopes
 // (HTTP + auth only).
 func PromptScopes(scopes ...string) PromptOption {
-	return func(p *core.Prompt) { p.Scopes = append(p.Scopes, scopes...) }
+	return func(p *promptDef) { p.Scopes = append(p.Scopes, scopes...) }
 }
 
 // PromptTimeout overrides the server default timeout for this prompt.
-func PromptTimeout(d time.Duration) PromptOption { return func(p *core.Prompt) { p.Timeout = d } }
+func PromptTimeout(d time.Duration) PromptOption { return func(p *promptDef) { p.Timeout = d } }
 
 // PromptMaxOutput overrides the server default size limit for this prompt.
-func PromptMaxOutput(n int) PromptOption { return func(p *core.Prompt) { p.MaxOutput = n } }
+func PromptMaxOutput(n int) PromptOption { return func(p *promptDef) { p.MaxOutput = n } }

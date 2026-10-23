@@ -11,7 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"go.xchunk.org/argon/auth"
-	"go.xchunk.org/argon/internal/core"
+	"go.xchunk.org/argon/internal/errs"
 )
 
 // session connects an in-memory client to srv, optionally injecting id
@@ -39,9 +39,9 @@ func session(ctx context.Context, srv *Server, id *auth.Identity) (*mcp.ClientSe
 }
 
 // ReadInMemory reads uri from srv over an in-memory session. A missing
-// resource is reported as core.ErrResourceNotFound. Like CallInMemory, srv
-// must be freshly built when id is non-nil.
-func ReadInMemory(ctx context.Context, srv *Server, uri string, id *auth.Identity) (*core.ResourceContents, error) {
+// resource is reported as an error wrapping errs.ResourceNotFound. Like
+// CallInMemory, srv must be freshly built when id is non-nil.
+func ReadInMemory(ctx context.Context, srv *Server, uri string, id *auth.Identity) (*ResourceData, error) {
 	cs, closeAll, err := session(ctx, srv, id)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func ReadInMemory(ctx context.Context, srv *Server, uri string, id *auth.Identit
 	if err != nil {
 		var rpcErr *jsonrpc.Error
 		if errors.As(err, &rpcErr) && rpcErr.Code == mcp.CodeResourceNotFound {
-			return nil, fmt.Errorf("%w: %s", core.ErrResourceNotFound, uri)
+			return nil, fmt.Errorf("%w: %s", errs.ResourceNotFound, uri)
 		}
 		return nil, err
 	}
@@ -59,13 +59,13 @@ func ReadInMemory(ctx context.Context, srv *Server, uri string, id *auth.Identit
 		return nil, errors.New("read returned no contents")
 	}
 	c := res.Contents[0]
-	return &core.ResourceContents{URI: c.URI, MIMEType: c.MIMEType, Text: c.Text, Blob: c.Blob}, nil
+	return &ResourceData{URI: c.URI, MIMEType: c.MIMEType, Text: c.Text, Blob: c.Blob}, nil
 }
 
 // GetPromptInMemory renders prompt name from srv over an in-memory session.
-// Rejected arguments are reported as core.ErrInvalidArguments. Like
-// CallInMemory, srv must be freshly built when id is non-nil.
-func GetPromptInMemory(ctx context.Context, srv *Server, name string, args map[string]string, id *auth.Identity) ([]core.PromptMessage, error) {
+// Rejected arguments are reported as an error wrapping errs.InvalidArguments.
+// Like CallInMemory, srv must be freshly built when id is non-nil.
+func GetPromptInMemory(ctx context.Context, srv *Server, name string, args map[string]string, id *auth.Identity) ([]PromptMsg, error) {
 	cs, closeAll, err := session(ctx, srv, id)
 	if err != nil {
 		return nil, err
@@ -76,26 +76,27 @@ func GetPromptInMemory(ctx context.Context, srv *Server, name string, args map[s
 		var rpcErr *jsonrpc.Error
 		if errors.As(err, &rpcErr) && rpcErr.Code == jsonrpc.CodeInvalidParams {
 			// The server message already starts with the sentinel's text.
-			msg := strings.TrimPrefix(rpcErr.Message, core.ErrInvalidArguments.Error()+": ")
-			return nil, fmt.Errorf("%w: %s", core.ErrInvalidArguments, msg)
+			msg := strings.TrimPrefix(rpcErr.Message, errs.InvalidArguments.Error()+": ")
+			return nil, fmt.Errorf("%w: %s", errs.InvalidArguments, msg)
 		}
 		return nil, err
 	}
-	out := make([]core.PromptMessage, 0, len(res.Messages))
+	out := make([]PromptMsg, 0, len(res.Messages))
 	for _, m := range res.Messages {
-		out = append(out, core.PromptMessage{Role: core.Role(m.Role), Content: fromSDKContent(m.Content)})
+		b, _ := fromSDKContent(m.Content)
+		out = append(out, PromptMsg{Role: string(m.Role), Content: b})
 	}
 	return out, nil
 }
 
 // CallInMemory connects an in-memory client to srv, calls tool once and
-// returns the result in core form. It exercises the full SDK path
-// (schema, encoding, result packing) without a subprocess or network.
+// returns the result. It exercises the full SDK path (schema, encoding,
+// result packing) without a subprocess or network.
 //
 // If id is non-nil, the call runs as that identity, as if it had arrived with
 // a verified bearer token. srv must be freshly built for this call, because
 // injecting the identity installs middleware on it.
-func CallInMemory(ctx context.Context, srv *Server, tool string, args json.RawMessage, id *auth.Identity) (*core.Result, error) {
+func CallInMemory(ctx context.Context, srv *Server, tool string, args json.RawMessage, id *auth.Identity) (*ToolResult, error) {
 	cs, closeAll, err := session(ctx, srv, id)
 	if err != nil {
 		return nil, err
@@ -106,10 +107,10 @@ func CallInMemory(ctx context.Context, srv *Server, tool string, args json.RawMe
 	if err != nil {
 		return nil, err
 	}
-	out := &core.Result{Structured: res.StructuredContent, IsError: res.IsError}
+	out := &ToolResult{Structured: res.StructuredContent, IsError: res.IsError}
 	for _, c := range res.Content {
-		if cc := fromSDKContent(c); cc != nil {
-			out.Content = append(out.Content, cc)
+		if b, ok := fromSDKContent(c); ok {
+			out.Content = append(out.Content, b)
 		}
 	}
 	return out, nil

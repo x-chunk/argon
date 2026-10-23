@@ -21,7 +21,7 @@ func TestKeycloakEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewVerifier: %v", err)
 	}
-	h, err := HTTPHandler(testServer(), &auth.Config{Issuer: iss, Audience: kctest.Audience, Verifier: v})
+	h, err := HTTPHandler(testServer(), &auth.Config{Issuer: iss, Audience: kctest.Audience, Verifier: v}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
