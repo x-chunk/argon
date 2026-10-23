@@ -53,7 +53,13 @@ func Algorithms(algs ...string) Option { return func(c *config) { c.algorithms =
 // ClockSkew sets the tolerance for exp/nbf checks. Default 30s.
 func ClockSkew(d time.Duration) Option { return func(c *config) { c.clockSkew = d } }
 
+// defaultHTTPTimeout bounds each request of the default HTTP client, so an
+// unresponsive issuer cannot hold requests indefinitely.
+const defaultHTTPTimeout = 15 * time.Second
+
 // HTTPClient sets the client used for discovery, JWKS and introspection.
+// The default is a client with a 15s timeout; a custom client should set
+// its own timeout.
 func HTTPClient(hc *http.Client) Option { return func(c *config) { c.httpClient = hc } }
 
 // ClaimsMapper overrides auth.DefaultClaimsMapper.
@@ -84,7 +90,7 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 	c := &config{
 		algorithms:   DefaultAlgorithms,
 		clockSkew:    30 * time.Second,
-		httpClient:   http.DefaultClient,
+		httpClient:   &http.Client{Timeout: defaultHTTPTimeout},
 		claimsMapper: auth.DefaultClaimsMapper,
 		minRefresh:   time.Minute,
 		maxKeyAge:    time.Hour,
