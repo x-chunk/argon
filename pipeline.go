@@ -16,7 +16,7 @@ type policy struct {
 
 // buildTool assembles the effective handler for t. Order, outermost first:
 //
-//	meta → recover → global middleware → scopes → timeout → max output → tool middleware → handler
+//	meta → recover → check result → global middleware → scopes → timeout → max output → tool middleware → handler
 //
 // Recover is outermost so that panics anywhere in the chain are contained.
 func buildTool(t *toolDef, d policy, global []Middleware) Handler {
@@ -42,8 +42,8 @@ func buildTool(t *toolDef, d policy, global []Middleware) Handler {
 		MaxOutput:   maxOut,
 	}
 
-	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+5)
-	mws = append(mws, withMeta(meta), recoverMiddleware(log))
+	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+6)
+	mws = append(mws, withMeta(meta), recoverMiddleware(log), checkResultMiddleware())
 	mws = append(mws, global...)
 	mws = append(mws, scopesMiddleware(t.Scopes...), timeoutMiddleware(timeout), maxOutputMiddleware(maxOut))
 	mws = append(mws, t.Middleware...)

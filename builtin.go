@@ -18,6 +18,24 @@ func recoverMiddleware(log *slog.Logger) Middleware {
 	}
 }
 
+// checkResultMiddleware rejects malformed results from anything inside it
+// (global middleware, tool middleware, the handler): a nil result without an
+// error would otherwise crash the SDK adapter.
+func checkResultMiddleware() Middleware {
+	return func(next Handler) Handler {
+		return func(ctx context.Context, req *Request) (*Result, error) {
+			res, err := next(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			if res == nil {
+				return nil, fmt.Errorf("tool %q returned no result", req.Tool)
+			}
+			return res, nil
+		}
+	}
+}
+
 // timeoutMiddleware bounds a call's duration via context cancellation.
 // A non-positive d disables the limit.
 func timeoutMiddleware(d time.Duration) Middleware {

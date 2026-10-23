@@ -173,3 +173,21 @@ func TestPointerOutputIsStructured(t *testing.T) {
 		t.Fatal("nil pointer output with an output schema must be a tool error")
 	}
 }
+
+func TestNilResultIsToolError(t *testing.T) {
+	nilMW := func(argon.Handler) argon.Handler {
+		return func(context.Context, *argon.Request) (*argon.Result, error) { return nil, nil }
+	}
+	s := argon.New("test")
+	argon.Tool(s, "nil", "Returns a nil result", func(context.Context, struct{}) (*argon.Result, error) {
+		return nil, nil
+	})
+	argon.Tool(s, "nilmw", "Middleware returns a nil result", func(context.Context, struct{}) (string, error) {
+		return "unreachable", nil
+	}, argon.With(nilMW))
+	for _, name := range []string{"nil", "nilmw"} {
+		if res := argontest.CallResult(t, s, name, struct{}{}); !res.IsError {
+			t.Fatalf("%s: nil result must be a tool error, got %+v", name, res)
+		}
+	}
+}
