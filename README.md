@@ -45,8 +45,10 @@ func main() {
 }
 ```
 
-`Run` serves over stdio by default; pass `--http :8080` (or set
-`ARGON_HTTP=:8080`) for Streamable HTTP. `RunStdio`, `RunHTTP` and
+`Run` serves over stdio by default; pass `--http 127.0.0.1:8080` (or set
+`ARGON_HTTP=127.0.0.1:8080`) for Streamable HTTP. Without `Auth`, listen on
+loopback only: `:8080` exposes every tool to the network, and Argon logs a
+warning when it does. `RunStdio`, `RunHTTP` and
 `Handler` (an `http.Handler` to mount in your own server) are also available.
 
 ## Tools

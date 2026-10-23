@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -67,6 +68,9 @@ func (s *Server) RunHTTP(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
+	if s.auth == nil && !isLoopback(addr) {
+		s.logger.Warn("argon: serving HTTP without Auth on a non-loopback address; anyone who can reach it can call every tool", "addr", addr)
+	}
 	streams, endStreams := context.WithCancel(context.Background())
 	defer endStreams()
 	hs := &http.Server{
@@ -90,6 +94,20 @@ func (s *Server) RunHTTP(ctx context.Context, addr string) error {
 		}
 		return nil
 	}
+}
+
+// isLoopback reports whether the listen address addr only accepts local
+// connections. An empty host listens on all interfaces.
+func isLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // endOnShutdown cancels GET requests (long-lived server-to-client streams)
