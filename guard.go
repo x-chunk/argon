@@ -11,8 +11,8 @@ import (
 )
 
 // The helpers below implement the safety policies shared by every kind of
-// handler (tools, resources). Each takes the item kind ("tool", "resource")
-// and name only for messages.
+// handler (tools, resources, prompts). Each takes the item kind ("tool",
+// "resource", "prompt") and name only for messages.
 
 // guardPanic runs f and turns a panic into an error. The stack is logged; it
 // is never returned, so it cannot reach the client.
