@@ -29,7 +29,7 @@ func TestKeySetRefreshRateLimited(t *testing.T) {
 	defer ts.Close()
 
 	now := time.Unix(1000, 0)
-	ks := newKeySet(ts.URL, ts.Client(), time.Minute)
+	ks := newKeySet(ts.URL, ts.Client(), time.Minute, 0)
 	ks.now = func() time.Time { return now }
 	ctx := t.Context()
 
@@ -71,7 +71,7 @@ func TestKeySetRefreshDetachedFromCaller(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	ks := newKeySet(ts.URL, ts.Client(), time.Minute)
+	ks := newKeySet(ts.URL, ts.Client(), time.Minute, 0)
 	if err := ks.refresh(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -82,5 +82,44 @@ func TestKeySetRefreshDetachedFromCaller(t *testing.T) {
 	cancel()
 	if keys, err := ks.lookup(ctx, "k2"); err != nil || len(keys) != 1 {
 		t.Fatalf("lookup with a canceled context must still refresh: %v, %v", keys, err)
+	}
+}
+
+// Keys the issuer withdraws must stop being trusted once the cache is older
+// than maxAge; while the issuer is unreachable the cached keys stay in use.
+func TestKeySetMaxAge(t *testing.T) {
+	priv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	var withdrawn, down atomic.Bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if down.Load() {
+			http.Error(w, "down", http.StatusServiceUnavailable)
+			return
+		}
+		set := jose.JSONWebKeySet{}
+		if !withdrawn.Load() {
+			set.Keys = []jose.JSONWebKey{{Key: &priv.PublicKey, KeyID: "k1", Algorithm: "ES256", Use: "sig"}}
+		}
+		json.NewEncoder(w).Encode(set)
+	}))
+	defer ts.Close()
+
+	now := time.Unix(1000, 0)
+	ks := newKeySet(ts.URL, ts.Client(), time.Minute, time.Hour)
+	ks.now = func() time.Time { return now }
+	if err := ks.refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	now = now.Add(2 * time.Hour)
+	down.Store(true)
+	if _, err := ks.lookup(t.Context(), "k1"); err != nil {
+		t.Fatalf("stale keys must stay usable while the issuer is down: %v", err)
+	}
+
+	now = now.Add(2 * time.Minute) // past minRefresh after the failed attempt
+	down.Store(false)
+	withdrawn.Store(true)
+	if _, err := ks.lookup(t.Context(), "k1"); err == nil {
+		t.Fatal("a withdrawn key must not be trusted after the cache expired")
 	}
 }

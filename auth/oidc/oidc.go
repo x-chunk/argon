@@ -10,7 +10,8 @@
 //     header is never trusted, "none" and HS* are always rejected;
 //   - only the configured issuer is contacted (no issuer from tokens → no SSRF);
 //   - "iss", "aud", "exp" and "nbf" are checked, with a small clock skew;
-//   - unknown "kid" triggers a rate-limited JWKS refresh;
+//   - unknown "kid" triggers a rate-limited JWKS refresh, and the JWKS is
+//     refetched once it is older than MaxKeyAge;
 //   - crypto comes from a vetted library, never hand-written.
 package oidc
 
@@ -35,6 +36,7 @@ type config struct {
 	httpClient   *http.Client
 	claimsMapper auth.ClaimsMapper
 	minRefresh   time.Duration
+	maxKeyAge    time.Duration
 	introspect   *introspection
 }
 
@@ -60,6 +62,12 @@ func ClaimsMapper(m auth.ClaimsMapper) Option { return func(c *config) { c.claim
 // MinRefreshInterval rate-limits JWKS refetches on unknown kid. Default 1m.
 func MinRefreshInterval(d time.Duration) Option { return func(c *config) { c.minRefresh = d } }
 
+// MaxKeyAge sets how long a fetched JWKS is trusted before it is refetched,
+// so keys the issuer withdraws (rotation, compromise) stop being accepted.
+// If the refetch fails, the cached keys stay in use. Default 1h; zero
+// disables age-based refresh.
+func MaxKeyAge(d time.Duration) Option { return func(c *config) { c.maxKeyAge = d } }
+
 // Introspection enables RFC 7662 introspection for opaque (non-JWT) tokens,
 // used when the issuer advertises an introspection endpoint.
 func Introspection(clientID, clientSecret string) Option {
@@ -79,6 +87,7 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 		httpClient:   http.DefaultClient,
 		claimsMapper: auth.DefaultClaimsMapper,
 		minRefresh:   time.Minute,
+		maxKeyAge:    time.Hour,
 	}
 	for _, o := range opts {
 		o(c)
@@ -93,7 +102,7 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 	}
 	v := &verifier{issuer: issuer, audience: audience, cfg: c, algs: algs, now: time.Now}
 	if md.JWKSURI != "" {
-		v.keys = newKeySet(md.JWKSURI, c.httpClient, c.minRefresh)
+		v.keys = newKeySet(md.JWKSURI, c.httpClient, c.minRefresh, c.maxKeyAge)
 		if err := v.keys.refresh(ctx); err != nil {
 			return nil, fmt.Errorf("oidc: fetch JWKS: %w", err)
 		}
