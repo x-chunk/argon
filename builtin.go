@@ -19,9 +19,11 @@ func recoverMiddleware(log *slog.Logger) Middleware {
 }
 
 // checkResultMiddleware rejects malformed results from anything inside it
-// (global middleware, tool middleware, the handler): a nil result without an
-// error would otherwise crash the SDK adapter.
-func checkResultMiddleware() Middleware {
+// (global middleware, tool middleware, the handler): a nil result or a nil
+// content block would otherwise crash the SDK adapter, and a tool that
+// declares an output schema (structured) must return structured content
+// unless it reports an error.
+func checkResultMiddleware(structured bool) Middleware {
 	return func(next Handler) Handler {
 		return func(ctx context.Context, req *Request) (*Result, error) {
 			res, err := next(ctx, req)
@@ -30,6 +32,14 @@ func checkResultMiddleware() Middleware {
 			}
 			if res == nil {
 				return nil, fmt.Errorf("tool %q returned no result", req.Tool)
+			}
+			for i, c := range res.Content {
+				if c == nil {
+					return nil, fmt.Errorf("tool %q returned a nil content block at index %d", req.Tool, i)
+				}
+			}
+			if structured && !res.IsError && res.Structured == nil {
+				return nil, fmt.Errorf("tool %q declares an output schema but returned no structured content", req.Tool)
 			}
 			return res, nil
 		}
@@ -100,7 +110,9 @@ func maxOutputMiddleware(n int) Middleware {
 func resultSize(r *Result) (int, error) {
 	size := 0
 	for _, c := range r.Content {
-		size += c.size()
+		if c != nil { // reported by checkResultMiddleware
+			size += c.size()
+		}
 	}
 	if r.Structured != nil {
 		b, err := json.Marshal(r.Structured)

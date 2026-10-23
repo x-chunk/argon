@@ -43,7 +43,7 @@ func buildTool(t *toolDef, d policy, global []Middleware) Handler {
 	}
 
 	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+6)
-	mws = append(mws, withMeta(meta), recoverMiddleware(log), checkResultMiddleware())
+	mws = append(mws, withMeta(meta), recoverMiddleware(log), checkResultMiddleware(t.OutputSchema != nil))
 	mws = append(mws, global...)
 	mws = append(mws, scopesMiddleware(t.Scopes...), timeoutMiddleware(timeout), maxOutputMiddleware(maxOut))
 	mws = append(mws, t.Middleware...)

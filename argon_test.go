@@ -241,3 +241,21 @@ func TestLargeIntegersKeepPrecision(t *testing.T) {
 		t.Fatalf("template got %q, %v", c.Text, err)
 	}
 }
+
+func TestMalformedResultsAreToolErrors(t *testing.T) {
+	textOnly := func(argon.Handler) argon.Handler {
+		return func(context.Context, *argon.Request) (*argon.Result, error) { return argon.Text("cached"), nil }
+	}
+	s := argon.New("test")
+	argon.Tool(s, "nilblock", "Nil content block", func(context.Context, struct{}) (*argon.Result, error) {
+		return argon.NewResult(nil), nil
+	})
+	argon.Tool(s, "unstructured", "Struct tool answered with text", func(context.Context, struct{}) (lenOut, error) {
+		return lenOut{}, nil
+	}, argon.With(textOnly))
+	for _, name := range []string{"nilblock", "unstructured"} {
+		if res := argontest.CallResult(t, s, name, struct{}{}); !res.IsError {
+			t.Fatalf("%s: want a tool error, got %+v", name, res)
+		}
+	}
+}
