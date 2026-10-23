@@ -3,6 +3,7 @@ package argon
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/google/jsonschema-go/jsonschema"
 )
@@ -15,7 +16,11 @@ type schema struct {
 }
 
 func schemaFor[T any]() (*schema, error) {
-	sc, err := jsonschema.For[T](nil)
+	return schemaForType(reflect.TypeFor[T]())
+}
+
+func schemaForType(t reflect.Type) (*schema, error) {
+	sc, err := jsonschema.ForType(t, nil)
 	if err != nil {
 		return nil, err
 	}

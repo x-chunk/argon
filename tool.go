@@ -40,8 +40,8 @@ func newTool[In, Out any](name, description string, h func(context.Context, In) 
 		return nil, fmt.Errorf("argon: tool %q input schema: %w", name, err)
 	}
 	var outSchema json.RawMessage
-	if t := reflect.TypeFor[Out](); t.Kind() == reflect.Struct {
-		out, err := schemaFor[Out]()
+	if elem, ok := structuredOutput(reflect.TypeFor[Out]()); ok {
+		out, err := schemaForType(elem)
 		if err != nil {
 			return nil, fmt.Errorf("argon: tool %q output schema: %w", name, err)
 		}
@@ -61,9 +61,32 @@ func newTool[In, Out any](name, description string, h func(context.Context, In) 
 			if err != nil {
 				return nil, err
 			}
+			if outSchema != nil && isNilPointer(out) {
+				// A declared output schema obliges a structured result.
+				return nil, fmt.Errorf("tool %q returned a nil result", name)
+			}
 			return pack(out, outSchema != nil)
 		},
 	}, nil
+}
+
+// structuredOutput reports whether a tool with output type t produces
+// structured content, and the struct type its output schema describes:
+// structs and pointers to structs do, except *Result, which carries its own
+// content.
+func structuredOutput(t reflect.Type) (reflect.Type, bool) {
+	switch {
+	case t.Kind() == reflect.Struct:
+		return t, true
+	case t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Struct && t != reflect.TypeFor[*Result]():
+		return t.Elem(), true
+	}
+	return nil, false
+}
+
+func isNilPointer(v any) bool {
+	rv := reflect.ValueOf(v)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 func ptr[T any](v T) *T { return &v }

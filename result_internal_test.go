@@ -1,6 +1,9 @@
 package argon
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestPack(t *testing.T) {
 	type obj struct {
@@ -33,5 +36,24 @@ func TestPack(t *testing.T) {
 				t.Errorf("structured = %v, want present=%v", res.Structured, tt.wantStruct)
 			}
 		})
+	}
+}
+
+func TestStructuredOutput(t *testing.T) {
+	type obj struct{ N int }
+	for _, tc := range []struct {
+		typ  reflect.Type
+		want bool
+	}{
+		{reflect.TypeFor[obj](), true},
+		{reflect.TypeFor[*obj](), true},
+		{reflect.TypeFor[*Result](), false},
+		{reflect.TypeFor[string](), false},
+		{reflect.TypeFor[[]obj](), false},
+		{reflect.TypeFor[map[string]int](), false},
+	} {
+		if _, got := structuredOutput(tc.typ); got != tc.want {
+			t.Errorf("%v: structured = %v, want %v", tc.typ, got, tc.want)
+		}
 	}
 }
