@@ -175,3 +175,16 @@ func TestMaxOutputCountsStructuredOnce(t *testing.T) {
 		t.Fatalf("size = %d, want %d (the JSON once)", size, want)
 	}
 }
+
+func TestNegativeToolLimitsDisable(t *testing.T) {
+	big := &toolDef{Name: "t", MaxOutput: -1, Timeout: -1, Handler: func(ctx context.Context, _ *Request) (*Result, error) {
+		if _, ok := ctx.Deadline(); ok {
+			return nil, errors.New("timeout not disabled")
+		}
+		return &Result{Content: []Content{TextContent{Text: strings.Repeat("x", 100)}}}, nil
+	}}
+	h := buildTool(big, policy{Timeout: time.Second, MaxOutput: 10}, nil)
+	if _, err := h(context.Background(), &Request{Tool: "t"}); err != nil {
+		t.Fatalf("negative per-tool limits must disable the defaults: %v", err)
+	}
+}

@@ -99,6 +99,9 @@ func defaultLogger(verbose bool) *slog.Logger {
 }
 
 // Timeout sets the default per-call timeout. Zero disables it.
+//
+// The timeout cancels the handler's context; a handler that ignores its
+// context keeps running, and the call waits for it.
 func Timeout(d time.Duration) Option { return func(s *Server) { s.defaults.Timeout = d } }
 
 // MaxOutput sets the default result size limit in bytes. Zero disables it.

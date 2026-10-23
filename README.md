@@ -135,12 +135,17 @@ argon.Prompt(s, "code_review", "Review a piece of code",
 
 | Default | Value | Override |
 |---|---|---|
-| Per-call timeout (tools, resources, prompts) | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
+| Per-call timeout (tools, resources, prompts; cancels the handler's context) | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
 | Result size limit | 1 MiB (oversized → error, never truncated) | `argon.MaxOutput(n)`, `argon.ToolMaxOutput(n)` |
 | Panic recovery | panics become error results, stack goes to logs | — |
 | stdout protection (stdio) | fd 1 redirected to stderr; protocol uses a private copy | — |
 | Graceful stdio shutdown | requests received before stdin EOF are answered | — |
 | Logging | stderr, Warn and above; SDK chatter hidden | `argon.Logger(l)`, `argon.LogCalls()` |
+
+Server-wide limits are disabled with zero; per-item options (`ToolTimeout`,
+`ResourceMaxOutput`, ...) keep the server default on zero and disable the
+limit with a negative value. Timeouts are cooperative: a handler that
+ignores its context keeps the call waiting.
 
 Middleware (`argon.Use(...)` globally, `argon.With(...)` per tool) sees
 `Request.Meta` with the tool's name, annotations, scopes and effective limits.

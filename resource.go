@@ -118,7 +118,9 @@ func ResourceScopes(scopes ...string) ResourceOption {
 }
 
 // ResourceTimeout overrides the server default timeout for this resource.
+// Zero keeps the default; a negative value disables the timeout.
 func ResourceTimeout(d time.Duration) ResourceOption { return func(r *resourceDef) { r.Timeout = d } }
 
-// ResourceMaxOutput overrides the server default size limit for this resource.
+// ResourceMaxOutput overrides the server default size limit for this
+// resource. Zero keeps the default; a negative value disables the limit.
 func ResourceMaxOutput(n int) ResourceOption { return func(r *resourceDef) { r.MaxOutput = n } }

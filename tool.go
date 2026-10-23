@@ -133,10 +133,12 @@ func Scopes(scopes ...string) ToolOption {
 	return func(c *toolDef) { c.Scopes = append(c.Scopes, scopes...) }
 }
 
-// ToolTimeout overrides the server default timeout for this tool.
+// ToolTimeout overrides the server default timeout for this tool. Zero
+// keeps the default; a negative value disables the timeout.
 func ToolTimeout(d time.Duration) ToolOption { return func(c *toolDef) { c.Timeout = d } }
 
 // ToolMaxOutput overrides the server default output limit for this tool.
+// Zero keeps the default; a negative value disables the limit.
 func ToolMaxOutput(n int) ToolOption { return func(c *toolDef) { c.MaxOutput = n } }
 
 // With adds middleware that applies to this tool only.

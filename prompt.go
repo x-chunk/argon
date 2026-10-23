@@ -81,8 +81,10 @@ func PromptScopes(scopes ...string) PromptOption {
 	return func(p *promptDef) { p.Scopes = append(p.Scopes, scopes...) }
 }
 
-// PromptTimeout overrides the server default timeout for this prompt.
+// PromptTimeout overrides the server default timeout for this prompt. Zero
+// keeps the default; a negative value disables the timeout.
 func PromptTimeout(d time.Duration) PromptOption { return func(p *promptDef) { p.Timeout = d } }
 
 // PromptMaxOutput overrides the server default size limit for this prompt.
+// Zero keeps the default; a negative value disables the limit.
 func PromptMaxOutput(n int) PromptOption { return func(p *promptDef) { p.MaxOutput = n } }
