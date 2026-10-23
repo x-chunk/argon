@@ -50,7 +50,9 @@ func (s *Server) RunHTTP(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
-	hs := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	// IdleTimeout closes idle keep-alive connections; without it they would
+	// fall back to the (unset) ReadTimeout and never be closed.
+	hs := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	errc := make(chan error, 1)
 	go func() { errc <- hs.ListenAndServe() }()
 	select {
