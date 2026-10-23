@@ -145,6 +145,8 @@ argon.Prompt(s, "code_review", "Review a piece of code",
 | stdout protection (stdio) | fd 1 redirected to stderr; protocol uses a private copy | — |
 | Graceful stdio shutdown | requests received before stdin EOF are answered | — |
 | Logging | stderr, Warn and above; SDK chatter hidden | `argon.Logger(l)`, `argon.LogCalls()` |
+| HTTP sessions | idle sessions expire after 30 min; request bodies limited by the SDK | — |
+| HTTP connections | idle keep-alive closed after 2 min; open streams end on shutdown | — |
 
 Server-wide limits are disabled with zero; per-item options (`ToolTimeout`,
 `ResourceMaxOutput`, ...) keep the server default on zero and disable the
@@ -250,6 +252,15 @@ Be careful when one session combines tools that read **untrusted content**
 model into misusing the second. Mark side-effecting tools `Destructive()`,
 gate them with scopes, and keep such combinations out of one server where
 you can.
+
+## Known limitations (v0.1)
+
+- Content blocks: text, images and resource links; no audio or embedded
+  resources yet.
+- A missing scope is reported as a tool error, not as HTTP 403 with
+  `insufficient_scope`, and `tools/list` is not filtered by scope.
+- Streamable HTTP options (stateless mode, stream resumption, custom
+  session timeout) are not exposed yet.
 
 ## Layout
 
