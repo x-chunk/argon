@@ -76,6 +76,10 @@ func MaxKeyAge(d time.Duration) Option { return func(c *config) { c.maxKeyAge = 
 
 // Introspection enables RFC 7662 introspection for opaque (non-JWT) tokens,
 // used when the issuer advertises an introspection endpoint.
+//
+// Active results are cached for up to 30s (never past the token's expiry),
+// so a token revoked at the issuer may still be accepted for that long. At
+// most 16 introspection requests run concurrently.
 func Introspection(clientID, clientSecret string) Option {
 	return func(c *config) { c.introspect = &introspection{clientID, clientSecret} }
 }
@@ -118,6 +122,8 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 			return nil, errors.New("oidc: introspection requested but issuer advertises no introspection_endpoint")
 		}
 		v.introspectURL = md.IntrospectionEndpoint
+		v.icache = newIntrospectCache()
+		v.isem = make(chan struct{}, introspectConcurrency)
 	}
 	if v.keys == nil && v.introspectURL == "" {
 		return nil, errors.New("oidc: issuer has no jwks_uri and introspection is not configured")
