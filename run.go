@@ -36,6 +36,7 @@ func (s *Server) RunStdio(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.warnScopesWithoutAuth("stdio")
 	out, restore, err := stdioguard.Capture()
 	if err != nil {
 		return err
@@ -117,6 +118,9 @@ func (s *Server) Handler() (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	if s.auth == nil {
+		s.warnScopesWithoutAuth("HTTP without Auth")
+	}
 	return sdkadapter.HTTPHandler(srv, s.auth, s.logger)
 }
 
@@ -165,6 +169,30 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 		Resources:    builtRes,
 		Prompts:      builtPrompts,
 	}), nil
+}
+
+// warnScopesWithoutAuth logs the items that require scopes when the
+// transport cannot authenticate callers: every call to them is rejected.
+func (s *Server) warnScopesWithoutAuth(transport string) {
+	var scoped []string
+	for _, t := range s.reg.All() {
+		if len(t.Scopes) > 0 {
+			scoped = append(scoped, "tool "+t.Name)
+		}
+	}
+	for _, r := range s.reg.Resources() {
+		if len(r.Scopes) > 0 {
+			scoped = append(scoped, "resource "+r.Key())
+		}
+	}
+	for _, p := range s.reg.Prompts() {
+		if len(p.Scopes) > 0 {
+			scoped = append(scoped, "prompt "+p.Name)
+		}
+	}
+	if len(scoped) > 0 {
+		s.logger.Warn("argon: items requiring scopes always reject unauthenticated callers", "transport", transport, "items", scoped)
+	}
 }
 
 // httpAddr extracts the HTTP listen address from args or the environment.

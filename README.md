@@ -185,6 +185,9 @@ argon.Tool(s, "add_note", "Save a note", addNote, argon.Scopes("notes:write"))
   ```
 - `auth.Static(token, identity)` covers simple self-hosted setups.
 - Handlers read the caller with `argon.IdentityFrom(ctx)`.
+- Scopes fail closed: without authentication (stdio, or HTTP without
+  `Auth`) items with `Scopes`/`ResourceScopes`/`PromptScopes` reject every
+  call, and Argon logs a warning naming them at startup.
 - `auth/oidc` is a separate package: stdio-only servers do not pull in JOSE.
 
 Authorization servers tested end to end: **Keycloak 26** (JWT and

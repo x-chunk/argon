@@ -1,6 +1,12 @@
 package argon
 
-import "testing"
+import (
+	"bytes"
+	"context"
+	"log/slog"
+	"strings"
+	"testing"
+)
 
 func TestHTTPAddr(t *testing.T) {
 	env := func(v string) func(string) string { return func(string) string { return v } }
@@ -25,5 +31,18 @@ func TestHTTPAddr(t *testing.T) {
 				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestWarnScopesWithoutAuth(t *testing.T) {
+	var buf bytes.Buffer
+	s := New("test", Logger(slog.New(slog.NewTextHandler(&buf, nil))))
+	Tool(s, "open", "", func(context.Context, struct{}) (string, error) { return "", nil })
+	Tool(s, "guarded", "", func(context.Context, struct{}) (string, error) { return "", nil }, Scopes("x"))
+	if _, err := s.Handler(); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); !strings.Contains(out, "tool guarded") || strings.Contains(out, "tool open") {
+		t.Fatalf("log = %q, want a warning naming only the scoped tool", out)
 	}
 }

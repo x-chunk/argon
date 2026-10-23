@@ -110,8 +110,9 @@ func MIMEType(m string) ResourceOption { return func(r *resourceDef) { r.MIMETyp
 // ResourceTitle sets a human-readable title.
 func ResourceTitle(t string) ResourceOption { return func(r *resourceDef) { r.Title = t } }
 
-// ResourceScopes requires the caller to hold all of the given scopes
-// (HTTP + auth only).
+// ResourceScopes requires the caller to hold all of the given scopes.
+// Without authentication (stdio, or HTTP without Auth) reads are always
+// rejected; see Scopes.
 func ResourceScopes(scopes ...string) ResourceOption {
 	return func(r *resourceDef) { r.Scopes = append(r.Scopes, scopes...) }
 }

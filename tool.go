@@ -126,7 +126,9 @@ func Idempotent() ToolOption { return func(c *toolDef) { c.Annotations.Idempoten
 // OpenWorld marks the tool as interacting with external entities.
 func OpenWorld() ToolOption { return func(c *toolDef) { c.Annotations.OpenWorld = ptr(true) } }
 
-// Scopes requires the caller to hold all of the given scopes (HTTP + auth only).
+// Scopes requires the caller to hold all of the given scopes. Scopes come
+// from the verified token, so without authentication (stdio, or HTTP
+// without Auth) calls are always rejected.
 func Scopes(scopes ...string) ToolOption {
 	return func(c *toolDef) { c.Scopes = append(c.Scopes, scopes...) }
 }

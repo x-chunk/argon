@@ -74,8 +74,9 @@ func Prompt[In any](s *Server, name, description string, h func(context.Context,
 // PromptTitle sets a human-readable title.
 func PromptTitle(t string) PromptOption { return func(p *promptDef) { p.Title = t } }
 
-// PromptScopes requires the caller to hold all of the given scopes
-// (HTTP + auth only).
+// PromptScopes requires the caller to hold all of the given scopes.
+// Without authentication (stdio, or HTTP without Auth) requests are always
+// rejected; see Scopes.
 func PromptScopes(scopes ...string) PromptOption {
 	return func(p *promptDef) { p.Scopes = append(p.Scopes, scopes...) }
 }
