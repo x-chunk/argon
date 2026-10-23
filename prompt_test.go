@@ -110,3 +110,29 @@ func TestPromptArgumentErrorMessage(t *testing.T) {
 		t.Fatalf("message %q repeats the prefix %d times", err, n)
 	}
 }
+
+type limitArgs struct {
+	Limit *int `json:"limit,omitempty" jsonschema:"maximum number of items"`
+}
+
+// Pointer fields are the Go idiom for optional values; they must convert
+// like their element type.
+func TestPromptPointerArgument(t *testing.T) {
+	s := argon.New("test")
+	argon.Prompt(s, "list", "List items", func(_ context.Context, a limitArgs) ([]argon.PromptMessage, error) {
+		if a.Limit == nil {
+			return []argon.PromptMessage{argon.UserMessage("all")}, nil
+		}
+		return []argon.PromptMessage{argon.UserMessage(strconv.Itoa(*a.Limit))}, nil
+	})
+	for args, want := range map[string]string{"": "all", "5": "5"} {
+		in := map[string]string{}
+		if args != "" {
+			in["limit"] = args
+		}
+		msgs, err := argontest.GetPrompt(t, s, "list", in)
+		if err != nil || msgs[0].Content.(argon.TextContent).Text != want {
+			t.Fatalf("limit %q: %+v, %v", args, msgs, err)
+		}
+	}
+}
