@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/yosida95/uritemplate/v3"
+
+	"go.xchunk.org/argon/internal/errs"
 )
 
 // ErrResourceNotFound is returned by a resource handler when the requested
 // resource does not exist. The adapter maps it to the protocol's
 // "resource not found" error.
-var ErrResourceNotFound = errors.New("resource not found")
+var ErrResourceNotFound = errs.ResourceNotFound
 
 // ResourceRequest is a single resources/read call as seen by the core.
 type ResourceRequest struct {

@@ -2,15 +2,16 @@ package core
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
+
+	"go.xchunk.org/argon/internal/errs"
 )
 
 // ErrInvalidArguments is returned by a prompt handler when the arguments are
 // missing, unknown or malformed. The adapter maps it to the protocol's
 // "invalid params" error.
-var ErrInvalidArguments = errors.New("invalid arguments")
+var ErrInvalidArguments = errs.InvalidArguments
 
 // Role is the speaker of a prompt message.
 type Role string
