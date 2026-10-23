@@ -86,7 +86,8 @@ func Instructions(text string) Option { return func(s *Server) { s.instructions 
 func Logger(l *slog.Logger) Option { return func(s *Server) { s.logger = l } }
 
 // LogCalls logs every tool call (name, duration, error) at Info level.
-// Arguments and results are never logged.
+// Arguments and results are never logged; invalid input is logged without
+// the rejected values. Errors returned by handlers are logged as they are.
 func LogCalls() Option { return func(s *Server) { s.logCalls = true } }
 
 func defaultLogger(verbose bool) *slog.Logger {
