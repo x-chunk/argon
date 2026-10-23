@@ -5,10 +5,13 @@ import "errors"
 // Config describes how the HTTP transport authenticates callers.
 // Argon acts as an OAuth 2.1 resource server only; it never issues tokens.
 type Config struct {
-	// Issuer is the authorization server issuer URL. Discovery only ever
-	// contacts this URL; the issuer is never taken from a token.
+	// Issuer is the authorization server issuer URL. It is only advertised
+	// (as the default AuthServer); verification uses the issuer given to the
+	// Verifier, such as oidc.NewVerifier, which must be the same.
 	Issuer string
-	// Audience is the resource identifier tokens must be minted for. Required.
+	// Audience is the resource identifier tokens must be minted for, i.e.
+	// the server's URL. Required. It is advertised in protected-resource
+	// metadata and must match the audience the Verifier checks.
 	Audience string
 	// AuthServer is advertised in protected-resource metadata (RFC 9728).
 	// Defaults to Issuer.
@@ -17,8 +20,6 @@ type Config struct {
 	// JWT/JWKS verification, or Static for a pre-shared token. Keeping the
 	// verifier explicit lets stdio-only users avoid JOSE dependencies.
 	Verifier TokenVerifier
-	// ClaimsMapper overrides DefaultClaimsMapper.
-	ClaimsMapper ClaimsMapper
 	// ResourceMetadataPath is where protected-resource metadata is served,
 	// as an absolute path on the Audience origin. Defaults to the RFC 9728
 	// location derived from the Audience path:
