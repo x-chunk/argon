@@ -27,7 +27,9 @@ import (
 	"go.xchunk.org/argon/auth"
 )
 
-// DefaultAlgorithms is the default signature algorithm allowlist.
+// DefaultAlgorithms is the default signature algorithm allowlist. It is
+// copied when a verifier is created; use Algorithms to change the list for
+// one verifier rather than modifying this variable.
 var DefaultAlgorithms = []string{"RS256", "ES256", "EdDSA"}
 
 type config struct {
@@ -87,6 +89,9 @@ func Introspection(clientID, clientSecret string) Option {
 // NewVerifier discovers issuer metadata and returns a verifier for tokens
 // minted for audience. It fetches the JWKS eagerly, so misconfiguration
 // fails at startup rather than on the first request.
+//
+// Use an https issuer outside local development: tokens, keys and the
+// introspection client secret travel over the issuer connection.
 func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (auth.TokenVerifier, error) {
 	if issuer == "" || audience == "" {
 		return nil, errors.New("oidc: issuer and audience are required")
