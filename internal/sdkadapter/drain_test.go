@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"go.xchunk.org/argon/internal/core"
 )
 
 type nopWriteCloser struct{ io.Writer }
@@ -17,19 +15,18 @@ type nopWriteCloser struct{ io.Writer }
 func (nopWriteCloser) Close() error { return nil }
 
 func TestServeStdioAnswersBeforeEOF(t *testing.T) {
-	slow := &core.Tool{
-		Name:        "slow",
-		InputSchema: json.RawMessage(`{"type":"object"}`),
-		Handler: func(ctx context.Context, _ *core.Request) (*core.Result, error) {
+	slow := Tool{
+		Def: ToolDef{Name: "slow", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		Call: func(ctx context.Context, _ json.RawMessage) (*ToolResult, error) {
 			select {
 			case <-time.After(100 * time.Millisecond):
-				return &core.Result{Content: []core.Content{core.TextContent{Text: "done"}}}, nil
+				return &ToolResult{Content: []Block{{Kind: BlockText, Text: "done"}}}, nil
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}
 		},
 	}
-	srv := NewServer(Config{Name: "t", Version: "0", Tools: []Tool{{Def: slow, Handler: slow.Handler}}})
+	srv := NewServer(Config{Name: "t", Version: "0", Tools: []Tool{slow}})
 
 	// The client writes everything and closes stdin immediately.
 	in := io.NopCloser(strings.NewReader(strings.Join([]string{

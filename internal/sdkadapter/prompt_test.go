@@ -3,43 +3,39 @@ package sdkadapter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"go.xchunk.org/argon/auth"
-	"go.xchunk.org/argon/internal/core"
+	"go.xchunk.org/argon/internal/errs"
 )
 
 func promptServer(t *testing.T) *Server {
 	t.Helper()
-	reg := core.NewRegistry()
-	defs := []*core.Prompt{
-		{Name: "greet", Description: "Greet someone",
-			Arguments: []core.PromptArgument{{Name: "name", Description: "who", Required: true}},
-			Handler: func(_ context.Context, r *core.PromptRequest) ([]core.PromptMessage, error) {
-				if r.Arguments["name"] == "" {
-					return nil, core.ErrInvalidArguments
+	return NewServer(Config{Name: "t", Version: "0", Prompts: []Prompt{
+		{Def: PromptDef{Name: "greet", Description: "Greet someone",
+			Arguments: []PromptArg{{Name: "name", Description: "who", Required: true}}},
+			Get: func(_ context.Context, args map[string]string) ([]PromptMsg, error) {
+				if args["name"] == "" {
+					return nil, fmt.Errorf("%w: name is required", errs.InvalidArguments)
 				}
-				return []core.PromptMessage{
-					{Role: core.RoleUser, Content: core.TextContent{Text: "Say hi to " + r.Arguments["name"]}},
-					{Role: core.RoleAssistant, Content: core.ImageContent{MIMEType: "image/png", Data: []byte{1}}},
+				return []PromptMsg{
+					{Role: "user", Content: Block{Kind: BlockText, Text: "Say hi to " + args["name"]}},
+					{Role: "assistant", Content: Block{Kind: BlockImage, MIMEType: "image/png", Data: []byte{1}}},
 				}, nil
 			}},
-		{Name: "admin", Scopes: []string{"admin"},
-			Handler: func(context.Context, *core.PromptRequest) ([]core.PromptMessage, error) {
-				return []core.PromptMessage{{Role: core.RoleUser, Content: core.TextContent{Text: "secret"}}}, nil
+		// Argon checks scopes above the adapter; this stands in for it.
+		{Def: PromptDef{Name: "admin"},
+			Get: func(ctx context.Context, _ map[string]string) ([]PromptMsg, error) {
+				if !auth.FromContext(ctx).HasScope("admin") {
+					return nil, errors.New("insufficient scope")
+				}
+				return []PromptMsg{{Role: "user", Content: Block{Kind: BlockText, Text: "secret"}}}, nil
 			}},
-	}
-	var ps []Prompt
-	for _, d := range defs {
-		if err := reg.AddPrompt(d); err != nil {
-			t.Fatal(err)
-		}
-		ps = append(ps, Prompt{Def: d, Handler: core.BuildPrompt(d, core.Defaults{})})
-	}
-	return NewServer(Config{Name: "t", Version: "0", Prompts: ps})
+	}})
 }
 
 func TestPromptList(t *testing.T) {
@@ -73,13 +69,13 @@ func TestPromptGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(msgs) != 2 || msgs[0].Role != core.RoleUser || msgs[0].Content.(core.TextContent).Text != "Say hi to Ann" {
+	if len(msgs) != 2 || msgs[0].Role != "user" || msgs[0].Content.Text != "Say hi to Ann" {
 		t.Fatalf("msgs = %+v", msgs)
 	}
-	if img, ok := msgs[1].Content.(core.ImageContent); !ok || msgs[1].Role != core.RoleAssistant || img.MIMEType != "image/png" {
+	if img := msgs[1].Content; img.Kind != BlockImage || msgs[1].Role != "assistant" || img.MIMEType != "image/png" {
 		t.Fatalf("second message = %+v", msgs[1])
 	}
-	if _, err := GetPromptInMemory(ctx, promptServer(t), "greet", nil, nil); !errors.Is(err, core.ErrInvalidArguments) {
+	if _, err := GetPromptInMemory(ctx, promptServer(t), "greet", nil, nil); !errors.Is(err, errs.InvalidArguments) {
 		t.Fatalf("missing argument: err = %v, want ErrInvalidArguments", err)
 	}
 	if _, err := GetPromptInMemory(ctx, promptServer(t), "nope", nil, nil); err == nil {

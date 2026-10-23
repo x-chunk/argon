@@ -8,15 +8,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"go.xchunk.org/argon/auth"
-	"go.xchunk.org/argon/internal/core"
+	"go.xchunk.org/argon/internal/errs"
 )
-
-// Prompt pairs a prompt definition with its fully built handler
-// (see core.BuildPrompt).
-type Prompt struct {
-	Def     *core.Prompt
-	Handler core.PromptHandler
-}
 
 func addPrompt(srv *mcp.Server, p Prompt) {
 	d := p.Def
@@ -29,16 +22,16 @@ func addPrompt(srv *mcp.Server, p Prompt) {
 		Title:       d.Title,
 		Description: d.Description,
 		Arguments:   args,
-	}, promptHandler(d.Name, p.Handler))
+	}, promptHandler(p.Get))
 }
 
-func promptHandler(name string, h core.PromptHandler) mcp.PromptHandler {
+func promptHandler(get func(context.Context, map[string]string) ([]PromptMsg, error)) mcp.PromptHandler {
 	return func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		if id := identityFromExtra(req.Extra); id != nil {
 			ctx = auth.NewContext(ctx, id)
 		}
-		msgs, err := h(ctx, &core.PromptRequest{Name: name, Arguments: req.Params.Arguments})
-		if errors.Is(err, core.ErrInvalidArguments) {
+		msgs, err := get(ctx, req.Params.Arguments)
+		if errors.Is(err, errs.InvalidArguments) {
 			return nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: err.Error()}
 		}
 		if err != nil {

@@ -3,6 +3,7 @@ package sdkadapter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,39 +14,53 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"go.xchunk.org/argon/auth"
-	"go.xchunk.org/argon/internal/core"
 )
 
 func ptr[T any](v T) *T { return &v }
 
-func whoami(ctx context.Context, _ *core.Request) (*core.Result, error) {
+func text(s string) *ToolResult {
+	return &ToolResult{Content: []Block{{Kind: BlockText, Text: s}}}
+}
+
+func whoami(ctx context.Context, _ json.RawMessage) (*ToolResult, error) {
 	id := auth.FromContext(ctx)
 	if id == nil {
-		return &core.Result{Content: []core.Content{core.TextContent{Text: "anonymous"}}}, nil
+		return text("anonymous"), nil
 	}
-	return &core.Result{Content: []core.Content{core.TextContent{Text: id.Subject}}}, nil
+	return text(id.Subject), nil
+}
+
+// requireScope stands in for Argon's scope check, which lives above the
+// adapter; here it only proves the identity reaches the handler.
+func requireScope(scope string, next func(context.Context, json.RawMessage) (*ToolResult, error)) func(context.Context, json.RawMessage) (*ToolResult, error) {
+	return func(ctx context.Context, args json.RawMessage) (*ToolResult, error) {
+		if !auth.FromContext(ctx).HasScope(scope) {
+			return nil, errors.New("insufficient scope")
+		}
+		return next(ctx, args)
+	}
 }
 
 func testServer() *Server {
 	obj := json.RawMessage(`{"type":"object"}`)
-	who := &core.Tool{Name: "whoami", InputSchema: obj, Handler: whoami,
-		Annotations: core.Annotations{ReadOnly: ptr(true), OpenWorld: ptr(false)}}
-	adm := &core.Tool{Name: "admin", InputSchema: obj, Handler: whoami, Scopes: []string{"admin"}}
+	who := ToolDef{Name: "whoami", InputSchema: obj,
+		Annotations: Annotations{ReadOnly: ptr(true), OpenWorld: ptr(false)}}
+	adm := ToolDef{Name: "admin", InputSchema: obj}
 	return NewServer(Config{Name: "t", Version: "0", Tools: []Tool{
-		{Def: who, Handler: core.Build(who, core.Defaults{}, nil)},
-		{Def: adm, Handler: core.Build(adm, core.Defaults{}, nil)},
+		{Def: who, Call: whoami},
+		{Def: adm, Call: requireScope("admin", whoami)},
 	}})
 }
 
 func TestToSDKToolAnnotations(t *testing.T) {
-	got := toSDKTool(&core.Tool{Name: "x", Annotations: core.Annotations{
+	got := toSDKTool(ToolDef{Name: "x", Annotations: Annotations{
 		ReadOnly: ptr(true), Destructive: ptr(false), Idempotent: ptr(true),
 	}})
 	a := got.Annotations
 	if a == nil || !a.ReadOnlyHint || !a.IdempotentHint || a.DestructiveHint == nil || *a.DestructiveHint || a.OpenWorldHint != nil {
 		t.Fatalf("annotations = %+v", a)
 	}
-	if toSDKTool(&core.Tool{Name: "y"}).Annotations != nil {
+	if toSDKTool(ToolDef{Name: "y"}).Annotations != nil {
 		t.Fatal("unspecified annotations must be omitted")
 	}
 }
@@ -161,14 +176,14 @@ func TestHTTPIdentityAndScopes(t *testing.T) {
 }
 
 func TestContentRoundTrip(t *testing.T) {
-	blocks := []core.Content{
-		core.TextContent{Text: "hi"},
-		core.ImageContent{MIMEType: "image/png", Data: []byte{0x89, 'P', 'N', 'G'}},
-		core.ResourceLink{URI: "file:///a.txt", Name: "a.txt", MIMEType: "text/plain"},
+	blocks := []Block{
+		{Kind: BlockText, Text: "hi"},
+		{Kind: BlockImage, MIMEType: "image/png", Data: []byte{0x89, 'P', 'N', 'G'}},
+		{Kind: BlockResourceLink, URI: "file:///a.txt", Name: "a.txt", MIMEType: "text/plain"},
 	}
 	for _, b := range blocks {
-		got := fromSDKContent(toSDKContent(b))
-		if !reflect.DeepEqual(got, b) {
+		got, ok := fromSDKContent(toSDKContent(b))
+		if !ok || !reflect.DeepEqual(got, b) {
 			t.Errorf("round trip %#v → %#v", b, got)
 		}
 	}

@@ -73,7 +73,11 @@ func CallResult(t testing.TB, s *argon.Server, tool string, in any, opts ...Call
 	if err != nil {
 		t.Fatalf("argontest: call %q: %v", tool, err)
 	}
-	return res
+	out := &argon.Result{Structured: res.Structured, IsError: res.IsError}
+	for _, b := range res.Content {
+		out.Content = append(out.Content, fromBlock(b))
+	}
+	return out
 }
 
 // joinText concatenates the text blocks of r, ignoring other content.
@@ -105,7 +109,7 @@ func ReadResource(t testing.TB, s *argon.Server, uri string, opts ...CallOption)
 	if err != nil {
 		return argon.ResourceContents{}, err
 	}
-	return *c, nil
+	return argon.ResourceContents{URI: c.URI, MIMEType: c.MIMEType, Text: c.Text, Blob: c.Blob}, nil
 }
 
 // GetPrompt renders prompt name from s through an in-memory MCP session.
@@ -123,5 +127,25 @@ func GetPrompt(t testing.TB, s *argon.Server, name string, args map[string]strin
 	if err != nil {
 		t.Fatalf("argontest: build server: %v", err)
 	}
-	return sdkadapter.GetPromptInMemory(cfg.ctx, srv, name, args, cfg.id)
+	msgs, err := sdkadapter.GetPromptInMemory(cfg.ctx, srv, name, args, cfg.id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]argon.PromptMessage, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, argon.PromptMessage{Role: argon.Role(m.Role), Content: fromBlock(m.Content)})
+	}
+	return out, nil
+}
+
+// fromBlock converts an adapter content block to Argon's content types.
+func fromBlock(b sdkadapter.Block) argon.Content {
+	switch b.Kind {
+	case sdkadapter.BlockImage:
+		return argon.ImageContent{MIMEType: b.MIMEType, Data: b.Data}
+	case sdkadapter.BlockResourceLink:
+		return argon.ResourceLink{URI: b.URI, Name: b.Name, Title: b.Title, Description: b.Description, MIMEType: b.MIMEType}
+	default:
+		return argon.TextContent{Text: b.Text}
+	}
 }

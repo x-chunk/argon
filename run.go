@@ -106,15 +106,15 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 	}
 	built := make([]sdkadapter.Tool, 0, len(tools))
 	for _, t := range tools {
-		built = append(built, sdkadapter.Tool{Def: t, Handler: core.Build(t, s.defaults, s.global)})
+		built = append(built, adaptTool(t, core.Build(t, s.defaults, s.global)))
 	}
 	builtRes := make([]sdkadapter.Resource, 0, len(resources))
 	for _, r := range resources {
-		builtRes = append(builtRes, sdkadapter.Resource{Def: r, Handler: core.BuildResource(r, s.defaults)})
+		builtRes = append(builtRes, adaptResource(r, core.BuildResource(r, s.defaults)))
 	}
 	builtPrompts := make([]sdkadapter.Prompt, 0, len(prompts))
 	for _, p := range prompts {
-		builtPrompts = append(builtPrompts, sdkadapter.Prompt{Def: p, Handler: core.BuildPrompt(p, s.defaults)})
+		builtPrompts = append(builtPrompts, adaptPrompt(p, core.BuildPrompt(p, s.defaults)))
 	}
 	return sdkadapter.NewServer(sdkadapter.Config{
 		Name:         s.name,
