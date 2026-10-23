@@ -1,5 +1,9 @@
 # argon
 
+[![CI](https://github.com/x-chunk/argon/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/x-chunk/argon/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/go.xchunk.org/argon.svg)](https://pkg.go.dev/go.xchunk.org/argon)
+[![Release](https://img.shields.io/github/v/release/x-chunk/argon?include_prereleases&sort=semver)](https://github.com/x-chunk/argon/releases)
+
 MCP framework for Go: build Model Context Protocol servers in a few lines.
 
 Argon is a thin, opinionated layer over the official
