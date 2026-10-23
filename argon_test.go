@@ -2,7 +2,9 @@ package argon_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 
 	"go.xchunk.org/argon"
@@ -213,5 +215,29 @@ func TestNonObjectInputReported(t *testing.T) {
 	}
 	if _, err := s.Handler(); err == nil {
 		t.Fatal("Handler must report the registration errors instead of panicking")
+	}
+}
+
+type bigID struct {
+	ID int64 `json:"id"`
+}
+
+// Integers beyond 2^53 must not be rounded on their way to the handler.
+func TestLargeIntegersKeepPrecision(t *testing.T) {
+	const id = 9007199254740993 // 2^53 + 1
+	s := argon.New("test")
+	argon.Tool(s, "id", "Echo an id", func(_ context.Context, in bigID) (string, error) {
+		return strconv.FormatInt(in.ID, 10), nil
+	})
+	argon.ResourceTemplate(s, "ids://{id}", "id", "An id", func(_ context.Context, in bigID) (argon.ResourceContents, error) {
+		return argon.TextResource(strconv.FormatInt(in.ID, 10)), nil
+	})
+	got, err := argontest.Call[string](t, s, "id", json.RawMessage(`{"id":9007199254740993}`))
+	if err != nil || got != strconv.FormatInt(id, 10) {
+		t.Fatalf("tool got %q, %v", got, err)
+	}
+	c, err := argontest.ReadResource(t, s, "ids://9007199254740993")
+	if err != nil || c.Text != strconv.FormatInt(id, 10) {
+		t.Fatalf("template got %q, %v", c.Text, err)
 	}
 }
