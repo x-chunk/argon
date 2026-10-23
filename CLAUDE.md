@@ -9,9 +9,10 @@ Argon is an MCP server framework for Go built on top of the official SDK
 - Every commit must build and pass checks on its own:
   `gofmt -l . && go build ./... && go vet ./... && go test ./...`
   (`gofmt -l` must print nothing).
-- Conventional Commits, in English: `feat(core): ...`, `fix(auth): ...`,
+- Conventional Commits, in English: `feat: ...`, `fix(auth): ...`,
   `docs: ...`, `chore: ...`, `test(...)`, `refactor(...)`.
-  Scope is the package name (`core`, `auth`, `oidc`, `sdkadapter`, `argontest`).
+  Scope is the package name (`auth`, `oidc`, `sdkadapter`, `argontest`);
+  omit it for the root package.
 
 - Integration tests against real services use the `integration` build tag
   (see `test/keycloak`). Run them when touching `auth/oidc` or the HTTP path:
@@ -27,8 +28,12 @@ Argon is an MCP server framework for Go built on top of the official SDK
   `internal/sdkadapter`. The public API exposes Argon's own types only.
 - `auth` is a leaf package with no heavy dependencies (no JOSE/JWT libs).
   Token crypto lives in `auth/oidc`.
-- Dependency direction: `argon → internal/core, internal/sdkadapter, auth`;
-  `internal/sdkadapter → go-sdk, internal/core, auth`; `auth/oidc → auth`.
+- Public types are defined in the root package `argon`, never aliased from
+  internal packages, so their docs show on pkg.go.dev.
+- `internal/sdkadapter` works on its own plain types and must not import
+  `argon`; `argon/adapt.go` converts at the boundary.
+- Dependency direction: `argon → internal/sdkadapter, internal/errs, auth`;
+  `internal/sdkadapter → go-sdk, internal/errs, auth`; `auth/oidc → auth`.
   Nothing imports the root `argon` package except users, `argontest`
   and examples.
 
