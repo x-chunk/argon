@@ -28,3 +28,20 @@ func TestLogCalls(t *testing.T) {
 		t.Fatal("arguments must never be logged")
 	}
 }
+
+// Validation errors quote the rejected value; the call log must not.
+func TestLogCallsHidesRejectedValues(t *testing.T) {
+	var buf bytes.Buffer
+	s := New("test", LogCalls(), Logger(slog.New(slog.NewTextHandler(&buf, nil))))
+	Tool(s, "login", "", func(context.Context, struct {
+		Pin int `json:"pin"`
+	}) (string, error) {
+		return "", nil
+	})
+	h := buildTool(s.reg.All()[0], s.defaults, s.global)
+	h(context.Background(), &Request{Tool: "login", Arguments: []byte(`{"pin":"hunter2"}`)})
+	out := buf.String()
+	if !strings.Contains(out, "invalid arguments") || strings.Contains(out, "hunter2") {
+		t.Fatalf("log = %q, want the failure without the rejected value", out)
+	}
+}

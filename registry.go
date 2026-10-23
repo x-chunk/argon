@@ -10,8 +10,9 @@ import (
 // letters, digits, '_', '-' and '.'.
 var validName = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
 
-// registry stores tools, resources and prompts in registration order. It is safe for
-// concurrent use.
+// registry stores tools, resources and prompts in registration order. Its
+// lock lets built servers read it while it is not being written; Server
+// itself does not support concurrent registration.
 type registry struct {
 	mu    sync.RWMutex
 	order []string

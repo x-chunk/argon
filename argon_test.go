@@ -2,7 +2,9 @@ package argon_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 
 	"go.xchunk.org/argon"
@@ -171,5 +173,89 @@ func TestPointerOutputIsStructured(t *testing.T) {
 	}
 	if _, err := argontest.Call[point](t, s, "nowhere", struct{}{}); err == nil {
 		t.Fatal("nil pointer output with an output schema must be a tool error")
+	}
+}
+
+func TestNilResultIsToolError(t *testing.T) {
+	nilMW := func(argon.Handler) argon.Handler {
+		return func(context.Context, *argon.Request) (*argon.Result, error) { return nil, nil }
+	}
+	s := argon.New("test")
+	argon.Tool(s, "nil", "Returns a nil result", func(context.Context, struct{}) (*argon.Result, error) {
+		return nil, nil
+	})
+	argon.Tool(s, "nilmw", "Middleware returns a nil result", func(context.Context, struct{}) (string, error) {
+		return "unreachable", nil
+	}, argon.With(nilMW))
+	for _, name := range []string{"nil", "nilmw"} {
+		if res := argontest.CallResult(t, s, name, struct{}{}); !res.IsError {
+			t.Fatalf("%s: nil result must be a tool error, got %+v", name, res)
+		}
+	}
+}
+
+func TestPointerInput(t *testing.T) {
+	s := argon.New("test")
+	argon.Tool(s, "echo", "Echo text", func(_ context.Context, in *echoIn) (string, error) {
+		return in.Text, nil
+	})
+	got, err := argontest.Call[string](t, s, "echo", echoIn{Text: "hi"})
+	if err != nil || got != "hi" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+}
+
+func TestNonObjectInputReported(t *testing.T) {
+	s := argon.New("test")
+	argon.Tool(s, "str", "String input", func(_ context.Context, in string) (string, error) { return in, nil })
+	argon.Tool(s, "list", "Slice input", func(_ context.Context, in []string) (string, error) { return "", nil })
+	argon.Tool(s, "ptr", "Pointer to scalar", func(_ context.Context, in *int) (string, error) { return "", nil })
+	if err := s.Err(); err == nil {
+		t.Fatal("want registration errors for non-object input types")
+	}
+	if _, err := s.Handler(); err == nil {
+		t.Fatal("Handler must report the registration errors instead of panicking")
+	}
+}
+
+type bigID struct {
+	ID int64 `json:"id"`
+}
+
+// Integers beyond 2^53 must not be rounded on their way to the handler.
+func TestLargeIntegersKeepPrecision(t *testing.T) {
+	const id = 9007199254740993 // 2^53 + 1
+	s := argon.New("test")
+	argon.Tool(s, "id", "Echo an id", func(_ context.Context, in bigID) (string, error) {
+		return strconv.FormatInt(in.ID, 10), nil
+	})
+	argon.ResourceTemplate(s, "ids://{id}", "id", "An id", func(_ context.Context, in bigID) (argon.ResourceContents, error) {
+		return argon.TextResource(strconv.FormatInt(in.ID, 10)), nil
+	})
+	got, err := argontest.Call[string](t, s, "id", json.RawMessage(`{"id":9007199254740993}`))
+	if err != nil || got != strconv.FormatInt(id, 10) {
+		t.Fatalf("tool got %q, %v", got, err)
+	}
+	c, err := argontest.ReadResource(t, s, "ids://9007199254740993")
+	if err != nil || c.Text != strconv.FormatInt(id, 10) {
+		t.Fatalf("template got %q, %v", c.Text, err)
+	}
+}
+
+func TestMalformedResultsAreToolErrors(t *testing.T) {
+	textOnly := func(argon.Handler) argon.Handler {
+		return func(context.Context, *argon.Request) (*argon.Result, error) { return argon.Text("cached"), nil }
+	}
+	s := argon.New("test")
+	argon.Tool(s, "nilblock", "Nil content block", func(context.Context, struct{}) (*argon.Result, error) {
+		return argon.NewResult(nil), nil
+	})
+	argon.Tool(s, "unstructured", "Struct tool answered with text", func(context.Context, struct{}) (lenOut, error) {
+		return lenOut{}, nil
+	}, argon.With(textOnly))
+	for _, name := range []string{"nilblock", "unstructured"} {
+		if res := argontest.CallResult(t, s, name, struct{}{}); !res.IsError {
+			t.Fatalf("%s: want a tool error, got %+v", name, res)
+		}
 	}
 }

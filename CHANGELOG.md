@@ -4,6 +4,75 @@ All notable changes to this project are documented here. The project
 follows [Semantic Versioning](https://semver.org); until v1.0.0 the API may
 change between minor versions and previews.
 
+## [v0.1.0-rc.1] — Release Candidate 1
+
+Fixes from the pre-release review. The API is now frozen for v0.1: until
+v0.1.0 only fixes land.
+
+### Breaking
+
+- `auth.Config.ClaimsMapper` is removed. It was never applied; configure
+  claims mapping on the verifier with `oidc.ClaimsMapper`.
+- `Run` returns an error for `--http` (or `--http=`) without an address
+  instead of silently serving stdio.
+
+### Security
+
+- A tool handler or middleware returning a nil `*Result` no longer crashes
+  the process; it is a tool error. Panics anywhere in request handling are
+  also recovered at the SDK boundary.
+- `auth/oidc`: JWKS refreshes are detached from the request that triggered
+  them, so a client dropping its connection can no longer abort refreshes
+  and keep rotated keys from being picked up; cached keys are read without
+  waiting for a fetch.
+- `auth/oidc`: the JWKS is refetched once older than `MaxKeyAge` (new
+  option, default 1h), so withdrawn keys stop being trusted.
+- `auth/oidc`: the default HTTP client times out after 15s.
+- `auth/oidc`: active introspection results are cached for up to 30s and at
+  most 16 introspection requests run concurrently.
+- Streamable HTTP sessions expire after 30 minutes without requests;
+  `RunHTTP` closes idle keep-alive connections after 2 minutes.
+- `LogCalls` no longer logs rejected argument values from validation
+  errors.
+- `RunHTTP` warns when serving without `Auth` on a non-loopback address;
+  serving or building a handler without authentication warns about items
+  that require scopes (they reject every call).
+- The stdio protocol descriptor gets close-on-exec under `syscall.ForkLock`,
+  so concurrently started children cannot inherit it.
+
+### Fixed
+
+- Non-object tool inputs (scalars, slices) are registration errors instead
+  of an SDK panic at startup; a pointer to a struct is accepted as input.
+- Integers beyond 2^53 keep their precision in tool inputs, template
+  variables and prompt arguments.
+- Pointer fields (e.g. `*int`) work in prompt arguments and template
+  variables.
+- `RunHTTP` ends open server-to-client streams on shutdown and returns nil
+  instead of waiting 5s and reporting `context deadline exceeded`.
+- Structured output counts once towards `MaxOutput`, not twice.
+- Results with nil content blocks, and tools with an output schema that
+  return no structured content, are tool errors.
+- Resource contents with both text and blob are rejected.
+- Resource templates whose parameter struct has a required field that is
+  not a template variable are registration errors.
+- The stdio drain matches request ids regardless of their spelling (`2.0`
+  vs `2`), so shutdown no longer waits the full drain timeout.
+- Middleware gets its own copy of tool annotations.
+
+### Documentation
+
+- Scopes fail closed without authentication; per-item limits keep the
+  default on zero and are disabled by negative values; timeouts are
+  cooperative; registration happens before serving; `Identity.Subject`
+  binds HTTP sessions; template variables arrive percent-decoded.
+- README: structured output rules, metadata path, HTTP defaults, known
+  limitations.
+
+### CI
+
+- Actions are pinned to commit SHAs.
+
 ## [v0.1.0-preview.4] — Developer Preview 4
 
 Fixes before the first release candidate; no new features.
@@ -116,6 +185,7 @@ First public preview. The API is not stable yet; feedback is welcome.
 - On non-Unix platforms stdout protection covers `os.Stdout` only.
 - Keycloak is the only real authorization server tested so far.
 
+[v0.1.0-rc.1]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-rc.1
 [v0.1.0-preview.4]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.4
 [v0.1.0-preview.3]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.3
 [v0.1.0-preview.2]: https://github.com/x-chunk/argon/releases/tag/v0.1.0-preview.2

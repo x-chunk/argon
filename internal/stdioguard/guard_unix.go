@@ -5,6 +5,7 @@ package stdioguard
 import (
 	"fmt"
 	"os"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -15,11 +16,19 @@ import (
 // stream. The returned file is a private duplicate of the original stdout
 // (close-on-exec, so children never inherit it). restore undoes everything.
 func Capture() (protocol *os.File, restore func(), err error) {
+	// Hold ForkLock across dup and CloseOnExec, as the standard library does:
+	// otherwise a child started by another goroutine in between would
+	// inherit the protocol stream. (F_DUPFD_CLOEXEC is not available on
+	// every Unix.)
+	syscall.ForkLock.RLock()
 	fd, err := unix.Dup(1)
+	if err == nil {
+		unix.CloseOnExec(fd)
+	}
+	syscall.ForkLock.RUnlock()
 	if err != nil {
 		return nil, nil, fmt.Errorf("stdioguard: dup stdout: %w", err)
 	}
-	unix.CloseOnExec(fd)
 	if err := unix.Dup2(2, 1); err != nil {
 		unix.Close(fd)
 		return nil, nil, fmt.Errorf("stdioguard: redirect stdout: %w", err)

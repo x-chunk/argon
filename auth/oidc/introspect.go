@@ -20,6 +20,15 @@ import (
 // a resource otherwise, and accepting tokens minted for other resources is
 // exactly what the mandatory audience is meant to prevent.
 func (v *verifier) introspect(ctx context.Context, token string) (*auth.Identity, error) {
+	if id, ok := v.icache.get(token, v.now()); ok {
+		return id, nil
+	}
+	select {
+	case v.isem <- struct{}{}:
+		defer func() { <-v.isem }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	form := url.Values{"token": {token}, "token_type_hint": {"access_token"}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, v.introspectURL, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -49,7 +58,13 @@ func (v *verifier) introspect(ctx context.Context, token string) (*auth.Identity
 	if err := v.checkIntrospected(claims); err != nil {
 		return nil, err
 	}
-	return v.identity(claims), nil
+	id := v.identity(claims)
+	var exp time.Time
+	if e, ok := claims["exp"].(float64); ok {
+		exp = time.Unix(int64(e), 0)
+	}
+	v.icache.put(token, id, exp, v.now())
+	return id, nil
 }
 
 func (v *verifier) checkIntrospected(c map[string]any) error {

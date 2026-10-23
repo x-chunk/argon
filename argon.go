@@ -29,6 +29,10 @@ const (
 
 // Server is an MCP server definition: a set of tools plus policies.
 // It is transport-independent; see Run, RunStdio and RunHTTP.
+//
+// Register tools, resources and prompts before serving, from a single
+// goroutine. The set is fixed when Run*, Handler or argontest builds the
+// server: later registrations are not served by servers already built.
 type Server struct {
 	name         string
 	version      string
@@ -86,7 +90,8 @@ func Instructions(text string) Option { return func(s *Server) { s.instructions 
 func Logger(l *slog.Logger) Option { return func(s *Server) { s.logger = l } }
 
 // LogCalls logs every tool call (name, duration, error) at Info level.
-// Arguments and results are never logged.
+// Arguments and results are never logged; invalid input is logged without
+// the rejected values. Errors returned by handlers are logged as they are.
 func LogCalls() Option { return func(s *Server) { s.logCalls = true } }
 
 func defaultLogger(verbose bool) *slog.Logger {
@@ -98,6 +103,9 @@ func defaultLogger(verbose bool) *slog.Logger {
 }
 
 // Timeout sets the default per-call timeout. Zero disables it.
+//
+// The timeout cancels the handler's context; a handler that ignores its
+// context keeps running, and the call waits for it.
 func Timeout(d time.Duration) Option { return func(s *Server) { s.defaults.Timeout = d } }
 
 // MaxOutput sets the default result size limit in bytes. Zero disables it.

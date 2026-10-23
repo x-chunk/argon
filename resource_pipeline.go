@@ -39,6 +39,10 @@ func buildResource(r *resourceDef, d policy) resourceHandler {
 			if c == nil {
 				return nil, errors.New("resource handler returned no contents")
 			}
+			if c.Text != "" && len(c.Blob) > 0 {
+				// MCP contents are either text or binary, never both.
+				return nil, errors.New("resource handler returned both text and blob contents")
+			}
 			if err := checkSize("resource", name, c.size(), maxOut); err != nil {
 				return nil, err
 			}

@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 // stringArgs decodes string-valued arguments — URI template variables and
@@ -37,7 +39,7 @@ func stringArgsSchema[T any]() (*stringArgs, error) {
 	sa := &stringArgs{schema: sc, props: make(map[string]argProp, len(root.Properties))}
 	for name, p := range root.Properties {
 		sa.props[name] = argProp{
-			typ:         p.Type,
+			typ:         valueType(p),
 			description: p.Description,
 			required:    slices.Contains(root.Required, name),
 		}
@@ -57,6 +59,21 @@ func stringArgsSchema[T any]() (*stringArgs, error) {
 	slices.Sort(rest)
 	sa.order = append(sa.order, rest...)
 	return sa, nil
+}
+
+// valueType returns the JSON Schema type a string value converts to. Pointer
+// fields are nullable, with a type list such as ["null", "integer"]; a value
+// that is present is never null, so the other type applies.
+func valueType(p *jsonschema.Schema) string {
+	if p.Type != "" {
+		return p.Type
+	}
+	for _, t := range p.Types {
+		if t != "null" {
+			return t
+		}
+	}
+	return ""
 }
 
 // has reports whether the struct has a property called name.

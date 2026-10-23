@@ -22,6 +22,8 @@ type verifier struct {
 
 	keys          *keySet // nil when the issuer has no JWKS
 	introspectURL string  // empty when introspection is disabled
+	icache        *introspectCache
+	isem          chan struct{} // bounds concurrent introspection requests
 }
 
 // Verify implements auth.TokenVerifier. Every failure wraps

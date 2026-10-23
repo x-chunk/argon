@@ -12,7 +12,10 @@ import (
 
 // Identity is what a handler sees after successful authentication.
 type Identity struct {
-	// Subject is the authenticated principal (the "sub" claim).
+	// Subject is the authenticated principal (the "sub" claim). On HTTP,
+	// sessions are bound to it so another caller cannot use them; an empty
+	// Subject disables that binding, so verifiers and claims mappers should
+	// always set it.
 	Subject string
 	// Scopes granted to the token.
 	Scopes []string

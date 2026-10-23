@@ -86,7 +86,7 @@ Argon adds:
    API, so it validates arguments itself against the inferred schema
    (defaults applied) before decoding into `In`.
 3. `argon` runs the middleware chain and the user handler. Order, outermost
-   first: meta (attaches `Request.Meta`) → recover → global (call log first)
+   first: meta (attaches `Request.Meta`) → recover → result check → global (call log first)
    → scopes → timeout → max output → per-tool → handler.
 4. The result is converted to adapter blocks and packed into SDK content;
    errors become `isError`.

@@ -16,7 +16,7 @@ type policy struct {
 
 // buildTool assembles the effective handler for t. Order, outermost first:
 //
-//	meta → recover → global middleware → scopes → timeout → max output → tool middleware → handler
+//	meta → recover → check result → global middleware → scopes → timeout → max output → tool middleware → handler
 //
 // Recover is outermost so that panics anywhere in the chain are contained.
 func buildTool(t *toolDef, d policy, global []Middleware) Handler {
@@ -36,14 +36,14 @@ func buildTool(t *toolDef, d policy, global []Middleware) Handler {
 	meta := &ToolMeta{
 		Name:        t.Name,
 		Title:       t.Title,
-		Annotations: t.Annotations,
+		Annotations: cloneAnnotations(t.Annotations),
 		Scopes:      slices.Clone(t.Scopes),
 		Timeout:     timeout,
 		MaxOutput:   maxOut,
 	}
 
-	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+5)
-	mws = append(mws, withMeta(meta), recoverMiddleware(log))
+	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+6)
+	mws = append(mws, withMeta(meta), recoverMiddleware(log), checkResultMiddleware(t.OutputSchema != nil))
 	mws = append(mws, global...)
 	mws = append(mws, scopesMiddleware(t.Scopes...), timeoutMiddleware(timeout), maxOutputMiddleware(maxOut))
 	mws = append(mws, t.Middleware...)
@@ -60,4 +60,16 @@ func withMeta(meta *ToolMeta) Middleware {
 			return next(ctx, &r)
 		}
 	}
+}
+
+// cloneAnnotations copies the hint values so middleware writing through
+// Request.Meta cannot change what tools/list reports.
+func cloneAnnotations(a Annotations) Annotations {
+	clone := func(b *bool) *bool {
+		if b == nil {
+			return nil
+		}
+		return ptr(*b)
+	}
+	return Annotations{ReadOnly: clone(a.ReadOnly), Destructive: clone(a.Destructive), Idempotent: clone(a.Idempotent), OpenWorld: clone(a.OpenWorld)}
 }

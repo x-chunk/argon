@@ -3,6 +3,7 @@ package argon
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -49,6 +50,9 @@ func Resource(s *Server, uri, name, description string, h func(context.Context) 
 // validated like tool input. A URI whose variables do not decode is
 // reported to the client as not found.
 //
+// Variables arrive percent-decoded, so they may contain "/" or "..": treat
+// them as untrusted input, for example before using one as a file path.
+//
 //	type NoteRef struct {
 //		ID int `json:"id"`
 //	}
@@ -85,9 +89,16 @@ func ResourceTemplate[P any](s *Server, uriTemplate, name, description string, h
 	if !s.addResource(r, opts) {
 		return
 	}
-	for _, v := range r.Varnames() {
+	vars := r.Varnames()
+	for _, v := range vars {
 		if !sc.has(v) {
 			s.errs = append(s.errs, fmt.Errorf("argon: resource template %q: variable %q has no matching field in %T", uriTemplate, v, *new(P)))
+		}
+	}
+	// A required field the template never fills would make every read fail.
+	for _, name := range sc.order {
+		if sc.props[name].required && !slices.Contains(vars, name) {
+			s.errs = append(s.errs, fmt.Errorf("argon: resource template %q: required field %q of %T is not a template variable", uriTemplate, name, *new(P)))
 		}
 	}
 }
@@ -110,14 +121,17 @@ func MIMEType(m string) ResourceOption { return func(r *resourceDef) { r.MIMETyp
 // ResourceTitle sets a human-readable title.
 func ResourceTitle(t string) ResourceOption { return func(r *resourceDef) { r.Title = t } }
 
-// ResourceScopes requires the caller to hold all of the given scopes
-// (HTTP + auth only).
+// ResourceScopes requires the caller to hold all of the given scopes.
+// Without authentication (stdio, or HTTP without Auth) reads are always
+// rejected; see Scopes.
 func ResourceScopes(scopes ...string) ResourceOption {
 	return func(r *resourceDef) { r.Scopes = append(r.Scopes, scopes...) }
 }
 
 // ResourceTimeout overrides the server default timeout for this resource.
+// Zero keeps the default; a negative value disables the timeout.
 func ResourceTimeout(d time.Duration) ResourceOption { return func(r *resourceDef) { r.Timeout = d } }
 
-// ResourceMaxOutput overrides the server default size limit for this resource.
+// ResourceMaxOutput overrides the server default size limit for this
+// resource. Zero keeps the default; a negative value disables the limit.
 func ResourceMaxOutput(n int) ResourceOption { return func(r *resourceDef) { r.MaxOutput = n } }

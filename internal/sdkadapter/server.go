@@ -36,6 +36,7 @@ func NewServer(cfg Config) *mcp.Server {
 			Capabilities: &mcp.ServerCapabilities{},
 		},
 	)
+	srv.AddReceivingMiddleware(recoverMiddleware(cfg.Logger))
 	for _, t := range cfg.Tools {
 		srv.AddTool(toSDKTool(t.Def), toolHandler(t.Call))
 	}

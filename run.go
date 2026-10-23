@@ -3,6 +3,8 @@ package argon
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,7 +24,11 @@ const EnvHTTP = "ARGON_HTTP"
 func (s *Server) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if addr := httpAddr(os.Args[1:], os.Getenv); addr != "" {
+	addr, err := httpAddr(os.Args[1:], os.Getenv)
+	if err != nil {
+		return err
+	}
+	if addr != "" {
 		return s.RunHTTP(ctx, addr)
 	}
 	return s.RunStdio(ctx)
@@ -36,6 +42,7 @@ func (s *Server) RunStdio(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.warnScopesWithoutAuth("stdio")
 	out, restore, err := stdioguard.Capture()
 	if err != nil {
 		return err
@@ -44,23 +51,81 @@ func (s *Server) RunStdio(ctx context.Context) error {
 	return sdkadapter.ServeStdio(ctx, srv, os.Stdin, out)
 }
 
+// HTTP server limits used by RunHTTP.
+const (
+	httpReadHeaderTimeout = 10 * time.Second
+	httpIdleTimeout       = 2 * time.Minute
+	httpShutdownTimeout   = 5 * time.Second
+)
+
 // RunHTTP serves s over Streamable HTTP on addr until ctx is done.
+//
+// On shutdown it stops accepting connections, ends open server-to-client
+// streams (GET requests) and waits up to 5s for in-flight requests before
+// closing the remaining connections.
 func (s *Server) RunHTTP(ctx context.Context, addr string) error {
 	h, err := s.Handler()
 	if err != nil {
 		return err
 	}
-	hs := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	if s.auth == nil && !isLoopback(addr) {
+		s.logger.Warn("argon: serving HTTP without Auth on a non-loopback address; anyone who can reach it can call every tool", "addr", addr)
+	}
+	streams, endStreams := context.WithCancel(context.Background())
+	defer endStreams()
+	hs := &http.Server{
+		Addr:              addr,
+		Handler:           endOnShutdown(h, streams),
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		IdleTimeout:       httpIdleTimeout,
+	}
 	errc := make(chan error, 1)
 	go func() { errc <- hs.ListenAndServe() }()
 	select {
 	case err := <-errc:
 		return err
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		endStreams()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
 		defer cancel()
-		return hs.Shutdown(shutdownCtx)
+		if err := hs.Shutdown(shutdownCtx); err != nil {
+			s.logger.Warn("argon: HTTP shutdown timed out; closing remaining connections", "error", err)
+			return hs.Close()
+		}
+		return nil
 	}
+}
+
+// isLoopback reports whether the listen address addr only accepts local
+// connections. An empty host listens on all interfaces.
+func isLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// endOnShutdown cancels GET requests (long-lived server-to-client streams)
+// when streams is done. They never finish on their own, so without this a
+// graceful shutdown would always wait out its timeout. Other requests keep
+// their context so in-flight calls can still complete.
+func endOnShutdown(h http.Handler, streams context.Context) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			h.ServeHTTP(w, r)
+			return
+		}
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		stop := context.AfterFunc(streams, cancel)
+		defer stop()
+		h.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // Handler returns s as an http.Handler for embedding into an existing HTTP
@@ -75,6 +140,9 @@ func (s *Server) Handler() (http.Handler, error) {
 	srv, err := s.build()
 	if err != nil {
 		return nil, err
+	}
+	if s.auth == nil {
+		s.warnScopesWithoutAuth("HTTP without Auth")
 	}
 	return sdkadapter.HTTPHandler(srv, s.auth, s.logger)
 }
@@ -126,17 +194,48 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 	}), nil
 }
 
+// warnScopesWithoutAuth logs the items that require scopes when the
+// transport cannot authenticate callers: every call to them is rejected.
+func (s *Server) warnScopesWithoutAuth(transport string) {
+	var scoped []string
+	for _, t := range s.reg.All() {
+		if len(t.Scopes) > 0 {
+			scoped = append(scoped, "tool "+t.Name)
+		}
+	}
+	for _, r := range s.reg.Resources() {
+		if len(r.Scopes) > 0 {
+			scoped = append(scoped, "resource "+r.Key())
+		}
+	}
+	for _, p := range s.reg.Prompts() {
+		if len(p.Scopes) > 0 {
+			scoped = append(scoped, "prompt "+p.Name)
+		}
+	}
+	if len(scoped) > 0 {
+		s.logger.Warn("argon: items requiring scopes always reject unauthenticated callers", "transport", transport, "items", scoped)
+	}
+}
+
 // httpAddr extracts the HTTP listen address from args or the environment.
-func httpAddr(args []string, getenv func(string) string) string {
+// A --http flag without a value is an error rather than a silent fallback
+// to stdio.
+func httpAddr(args []string, getenv func(string) string) (string, error) {
 	for i, a := range args {
 		switch {
 		case a == "--http" || a == "-http":
-			if i+1 < len(args) {
-				return args[i+1]
+			if i+1 >= len(args) || args[i+1] == "" {
+				return "", fmt.Errorf("argon: %s requires a listen address, e.g. %s :8080", a, a)
 			}
+			return args[i+1], nil
 		case strings.HasPrefix(a, "--http="), strings.HasPrefix(a, "-http="):
-			return a[strings.Index(a, "=")+1:]
+			addr := a[strings.Index(a, "=")+1:]
+			if addr == "" {
+				return "", fmt.Errorf("argon: %s requires a listen address", a)
+			}
+			return addr, nil
 		}
 	}
-	return getenv(EnvHTTP)
+	return getenv(EnvHTTP), nil
 }

@@ -1,6 +1,7 @@
 package argon
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -38,6 +39,10 @@ func schemaForType(t reflect.Type) (*schema, error) {
 // decode validates args against the schema, applies defaults and decodes
 // the result into dst. Missing arguments are treated as an empty object.
 // Errors wrap ErrInvalidArguments.
+//
+// The validator needs float64 numbers, but decoding into dst from those
+// would round integers beyond 2^53. So dst is decoded from a copy that keeps
+// numbers as json.Number, with only the applied defaults merged in.
 func (s *schema) decode(args json.RawMessage, dst any) error {
 	if len(args) == 0 || string(args) == "null" {
 		args = json.RawMessage("{}")
@@ -52,7 +57,17 @@ func (s *schema) decode(args json.RawMessage, dst any) error {
 	if err := s.resolved.Validate(m); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidArguments, err)
 	}
-	b, err := json.Marshal(m)
+	var exact map[string]any
+	d := json.NewDecoder(bytes.NewReader(args))
+	d.UseNumber()
+	if err := d.Decode(&exact); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidArguments, err)
+	}
+	if exact == nil {
+		exact = map[string]any{}
+	}
+	mergeMissing(exact, m)
+	b, err := json.Marshal(exact)
 	if err != nil {
 		return err
 	}
@@ -60,4 +75,21 @@ func (s *schema) decode(args json.RawMessage, dst any) error {
 		return fmt.Errorf("%w: %w", ErrInvalidArguments, err)
 	}
 	return nil
+}
+
+// mergeMissing copies into dst the entries of src it lacks, recursing into
+// objects present in both. It carries applied defaults over to dst.
+func mergeMissing(dst, src map[string]any) {
+	for k, v := range src {
+		cur, ok := dst[k]
+		if !ok {
+			dst[k] = v
+			continue
+		}
+		if dm, ok := cur.(map[string]any); ok {
+			if sm, ok := v.(map[string]any); ok {
+				mergeMissing(dm, sm)
+			}
+		}
+	}
 }

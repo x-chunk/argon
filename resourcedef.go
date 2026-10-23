@@ -28,7 +28,9 @@ type resourceRequest struct {
 }
 
 // ResourceContents is what a resource handler returns: text or binary data
-// (see TextResource and BlobResource).
+// (see TextResource and BlobResource), never both. Note that empty text is
+// sent without a text field, which strict clients may not accept; prefer a
+// non-empty placeholder or an empty blob for empty contents.
 type ResourceContents struct {
 	// URI of the content; defaults to the requested URI when empty.
 	URI string

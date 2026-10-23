@@ -74,14 +74,17 @@ func Prompt[In any](s *Server, name, description string, h func(context.Context,
 // PromptTitle sets a human-readable title.
 func PromptTitle(t string) PromptOption { return func(p *promptDef) { p.Title = t } }
 
-// PromptScopes requires the caller to hold all of the given scopes
-// (HTTP + auth only).
+// PromptScopes requires the caller to hold all of the given scopes.
+// Without authentication (stdio, or HTTP without Auth) requests are always
+// rejected; see Scopes.
 func PromptScopes(scopes ...string) PromptOption {
 	return func(p *promptDef) { p.Scopes = append(p.Scopes, scopes...) }
 }
 
-// PromptTimeout overrides the server default timeout for this prompt.
+// PromptTimeout overrides the server default timeout for this prompt. Zero
+// keeps the default; a negative value disables the timeout.
 func PromptTimeout(d time.Duration) PromptOption { return func(p *promptDef) { p.Timeout = d } }
 
 // PromptMaxOutput overrides the server default size limit for this prompt.
+// Zero keeps the default; a negative value disables the limit.
 func PromptMaxOutput(n int) PromptOption { return func(p *promptDef) { p.MaxOutput = n } }

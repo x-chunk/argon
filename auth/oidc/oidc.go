@@ -10,7 +10,8 @@
 //     header is never trusted, "none" and HS* are always rejected;
 //   - only the configured issuer is contacted (no issuer from tokens → no SSRF);
 //   - "iss", "aud", "exp" and "nbf" are checked, with a small clock skew;
-//   - unknown "kid" triggers a rate-limited JWKS refresh;
+//   - unknown "kid" triggers a rate-limited JWKS refresh, and the JWKS is
+//     refetched once it is older than MaxKeyAge;
 //   - crypto comes from a vetted library, never hand-written.
 package oidc
 
@@ -26,7 +27,9 @@ import (
 	"go.xchunk.org/argon/auth"
 )
 
-// DefaultAlgorithms is the default signature algorithm allowlist.
+// DefaultAlgorithms is the default signature algorithm allowlist. It is
+// copied when a verifier is created; use Algorithms to change the list for
+// one verifier rather than modifying this variable.
 var DefaultAlgorithms = []string{"RS256", "ES256", "EdDSA"}
 
 type config struct {
@@ -35,6 +38,7 @@ type config struct {
 	httpClient   *http.Client
 	claimsMapper auth.ClaimsMapper
 	minRefresh   time.Duration
+	maxKeyAge    time.Duration
 	introspect   *introspection
 }
 
@@ -51,7 +55,13 @@ func Algorithms(algs ...string) Option { return func(c *config) { c.algorithms =
 // ClockSkew sets the tolerance for exp/nbf checks. Default 30s.
 func ClockSkew(d time.Duration) Option { return func(c *config) { c.clockSkew = d } }
 
+// defaultHTTPTimeout bounds each request of the default HTTP client, so an
+// unresponsive issuer cannot hold requests indefinitely.
+const defaultHTTPTimeout = 15 * time.Second
+
 // HTTPClient sets the client used for discovery, JWKS and introspection.
+// The default is a client with a 15s timeout; a custom client should set
+// its own timeout.
 func HTTPClient(hc *http.Client) Option { return func(c *config) { c.httpClient = hc } }
 
 // ClaimsMapper overrides auth.DefaultClaimsMapper.
@@ -60,8 +70,18 @@ func ClaimsMapper(m auth.ClaimsMapper) Option { return func(c *config) { c.claim
 // MinRefreshInterval rate-limits JWKS refetches on unknown kid. Default 1m.
 func MinRefreshInterval(d time.Duration) Option { return func(c *config) { c.minRefresh = d } }
 
+// MaxKeyAge sets how long a fetched JWKS is trusted before it is refetched,
+// so keys the issuer withdraws (rotation, compromise) stop being accepted.
+// If the refetch fails, the cached keys stay in use. Default 1h; zero
+// disables age-based refresh.
+func MaxKeyAge(d time.Duration) Option { return func(c *config) { c.maxKeyAge = d } }
+
 // Introspection enables RFC 7662 introspection for opaque (non-JWT) tokens,
 // used when the issuer advertises an introspection endpoint.
+//
+// Active results are cached for up to 30s (never past the token's expiry),
+// so a token revoked at the issuer may still be accepted for that long. At
+// most 16 introspection requests run concurrently.
 func Introspection(clientID, clientSecret string) Option {
 	return func(c *config) { c.introspect = &introspection{clientID, clientSecret} }
 }
@@ -69,6 +89,9 @@ func Introspection(clientID, clientSecret string) Option {
 // NewVerifier discovers issuer metadata and returns a verifier for tokens
 // minted for audience. It fetches the JWKS eagerly, so misconfiguration
 // fails at startup rather than on the first request.
+//
+// Use an https issuer outside local development: tokens, keys and the
+// introspection client secret travel over the issuer connection.
 func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (auth.TokenVerifier, error) {
 	if issuer == "" || audience == "" {
 		return nil, errors.New("oidc: issuer and audience are required")
@@ -76,9 +99,10 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 	c := &config{
 		algorithms:   DefaultAlgorithms,
 		clockSkew:    30 * time.Second,
-		httpClient:   http.DefaultClient,
+		httpClient:   &http.Client{Timeout: defaultHTTPTimeout},
 		claimsMapper: auth.DefaultClaimsMapper,
 		minRefresh:   time.Minute,
+		maxKeyAge:    time.Hour,
 	}
 	for _, o := range opts {
 		o(c)
@@ -93,7 +117,7 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 	}
 	v := &verifier{issuer: issuer, audience: audience, cfg: c, algs: algs, now: time.Now}
 	if md.JWKSURI != "" {
-		v.keys = newKeySet(md.JWKSURI, c.httpClient, c.minRefresh)
+		v.keys = newKeySet(md.JWKSURI, c.httpClient, c.minRefresh, c.maxKeyAge)
 		if err := v.keys.refresh(ctx); err != nil {
 			return nil, fmt.Errorf("oidc: fetch JWKS: %w", err)
 		}
@@ -103,6 +127,8 @@ func NewVerifier(ctx context.Context, issuer, audience string, opts ...Option) (
 			return nil, errors.New("oidc: introspection requested but issuer advertises no introspection_endpoint")
 		}
 		v.introspectURL = md.IntrospectionEndpoint
+		v.icache = newIntrospectCache()
+		v.isem = make(chan struct{}, introspectConcurrency)
 	}
 	if v.keys == nil && v.introspectURL == "" {
 		return nil, errors.New("oidc: issuer has no jwks_uri and introspection is not configured")

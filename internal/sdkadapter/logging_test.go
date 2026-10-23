@@ -31,3 +31,9 @@ func TestStreamableOptionsLogger(t *testing.T) {
 		t.Fatalf("HTTP-layer logs must reach the server logger, filtered to Warn+: %q", out)
 	}
 }
+
+func TestStreamableSessionsExpire(t *testing.T) {
+	if got := streamableOptions(nil).SessionTimeout; got != SessionTimeout || got <= 0 {
+		t.Fatalf("SessionTimeout = %v, want %v", got, SessionTimeout)
+	}
+}

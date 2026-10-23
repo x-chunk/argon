@@ -11,8 +11,8 @@ Argon is a thin, opinionated layer over the official
 protocol; Argon owns ergonomics, safe defaults and token verification. SDK
 types never appear in Argon's API.
 
-> Status: **v0.1.0 Developer Preview 4** (`v0.1.0-preview.4`). The API may
-> change before v1.0.0. See [CHANGELOG.md](CHANGELOG.md).
+> Status: **v0.1.0 Release Candidate 1** (`v0.1.0-rc.1`). The v0.1 API is
+> frozen; it may still change before v1.0.0. See [CHANGELOG.md](CHANGELOG.md).
 
 ```
 go get go.xchunk.org/argon
@@ -45,17 +45,21 @@ func main() {
 }
 ```
 
-`Run` serves over stdio by default; pass `--http :8080` (or set
-`ARGON_HTTP=:8080`) for Streamable HTTP. `RunStdio`, `RunHTTP` and
+`Run` serves over stdio by default; pass `--http 127.0.0.1:8080` (or set
+`ARGON_HTTP=127.0.0.1:8080`) for Streamable HTTP. Without `Auth`, listen on
+loopback only: `:8080` exposes every tool to the network, and Argon logs a
+warning when it does. `RunStdio`, `RunHTTP` and
 `Handler` (an `http.Handler` to mount in your own server) are also available.
 
 ## Tools
 
-- The input type's JSON Schema is inferred from `json` and `jsonschema`
-  struct tags. Arguments are validated before your handler runs; invalid
+- The input is a struct (or a pointer to one, or a map); its JSON Schema is
+  inferred from `json` and `jsonschema` struct tags. Arguments are validated before your handler runs; invalid
   input becomes an error result the model can correct.
-- Return a `string`, any JSON-serializable value (sent as structured
-  content), or a `*argon.Result` for several blocks:
+- Return a `string`, a struct or pointer to a struct (sent as structured
+  content with an output schema, plus its JSON as text), any other
+  JSON-serializable value (sent as JSON text), or a `*argon.Result` for
+  several blocks:
   `argon.NewResult(argon.TextContent{...}, argon.ImageContent{...}, argon.ResourceLink{...})`.
 - A returned `error` becomes an `isError` result, not a protocol failure.
 - Options: `ReadOnly()`, `Destructive()`, `Idempotent()`, `OpenWorld()`,
@@ -135,12 +139,19 @@ argon.Prompt(s, "code_review", "Review a piece of code",
 
 | Default | Value | Override |
 |---|---|---|
-| Per-call timeout (tools, resources, prompts) | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
+| Per-call timeout (tools, resources, prompts; cancels the handler's context) | 60s | `argon.Timeout(d)`, `argon.ToolTimeout(d)` |
 | Result size limit | 1 MiB (oversized → error, never truncated) | `argon.MaxOutput(n)`, `argon.ToolMaxOutput(n)` |
 | Panic recovery | panics become error results, stack goes to logs | — |
 | stdout protection (stdio) | fd 1 redirected to stderr; protocol uses a private copy | — |
 | Graceful stdio shutdown | requests received before stdin EOF are answered | — |
 | Logging | stderr, Warn and above; SDK chatter hidden | `argon.Logger(l)`, `argon.LogCalls()` |
+| HTTP sessions | idle sessions expire after 30 min; request bodies limited by the SDK | — |
+| HTTP connections | idle keep-alive closed after 2 min; open streams end on shutdown | — |
+
+Server-wide limits are disabled with zero; per-item options (`ToolTimeout`,
+`ResourceMaxOutput`, ...) keep the server default on zero and disable the
+limit with a negative value. Timeouts are cooperative: a handler that
+ignores its context keeps the call waiting.
 
 Middleware (`argon.Use(...)` globally, `argon.With(...)` per tool) sees
 `Request.Meta` with the tool's name, annotations, scopes and effective limits.
@@ -172,7 +183,9 @@ argon.Tool(s, "add_note", "Save a note", addNote, argon.Scopes("notes:write"))
 - The audience is mandatory, so tokens minted for other resources are
   rejected.
 - Unauthenticated requests get `401` with a `WWW-Authenticate` header
-  pointing at `/.well-known/oauth-protected-resource` (RFC 9728).
+  pointing at the RFC 9728 metadata: `/.well-known/oauth-protected-resource`
+  followed by the audience path (e.g. `.../oauth-protected-resource/mcp` for
+  `https://example.com/mcp`).
 - Mounting under a prefix: set `Audience` to the full endpoint URL and also
   mount the metadata endpoint at the root, since its RFC 9728 path lives
   outside the prefix:
@@ -185,6 +198,9 @@ argon.Tool(s, "add_note", "Save a note", addNote, argon.Scopes("notes:write"))
   ```
 - `auth.Static(token, identity)` covers simple self-hosted setups.
 - Handlers read the caller with `argon.IdentityFrom(ctx)`.
+- Scopes fail closed: without authentication (stdio, or HTTP without
+  `Auth`) items with `Scopes`/`ResourceScopes`/`PromptScopes` reject every
+  call, and Argon logs a warning naming them at startup.
 - `auth/oidc` is a separate package: stdio-only servers do not pull in JOSE.
 
 Authorization servers tested end to end: **Keycloak 26** (JWT and
@@ -236,6 +252,15 @@ Be careful when one session combines tools that read **untrusted content**
 model into misusing the second. Mark side-effecting tools `Destructive()`,
 gate them with scopes, and keep such combinations out of one server where
 you can.
+
+## Known limitations (v0.1)
+
+- Content blocks: text, images and resource links; no audio or embedded
+  resources yet.
+- A missing scope is reported as a tool error, not as HTTP 403 with
+  `insufficient_scope`, and `tools/list` is not filtered by scope.
+- Streamable HTTP options (stateless mode, stream resumption, custom
+  session timeout) are not exposed yet.
 
 ## Layout
 

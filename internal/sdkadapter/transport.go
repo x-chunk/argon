@@ -20,6 +20,12 @@ import (
 
 const defaultResourceMetadataPath = "/.well-known/oauth-protected-resource"
 
+// SessionTimeout closes Streamable HTTP sessions that receive no requests
+// for this long. Without it the SDK keeps every session forever, so clients
+// that never send DELETE (or a flood of initialize requests) grow memory
+// without bound.
+const SessionTimeout = 30 * time.Minute
+
 // ServeStdio runs srv over in/out until the client disconnects or ctx ends.
 // When in reaches EOF, requests already received are answered before the
 // server stops (bounded by DrainTimeout).
@@ -77,11 +83,13 @@ func ResourceMetadataHandler(ac *auth.Config) (path string, h http.Handler, err 
 	return meta.path, meta.handler, nil
 }
 
-// streamableOptions configures the SDK's Streamable HTTP handler. Other
-// options are intentionally not exposed yet; SDK defaults apply (see the
-// roadmap). Without a logger the SDK discards its HTTP-layer errors.
+// streamableOptions configures the SDK's Streamable HTTP handler: idle
+// sessions expire after SessionTimeout. Other options are intentionally not
+// exposed yet; SDK defaults apply (see the roadmap), including the request
+// body limit and DNS rebinding protection. Without a logger the SDK discards
+// its HTTP-layer errors.
 func streamableOptions(log *slog.Logger) *mcp.StreamableHTTPOptions {
-	return &mcp.StreamableHTTPOptions{Logger: sdkLogger(log)}
+	return &mcp.StreamableHTTPOptions{Logger: sdkLogger(log), SessionTimeout: SessionTimeout}
 }
 
 // verifier adapts an Argon verifier to the SDK's bearer middleware. The
