@@ -3,6 +3,7 @@ package argon_test
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -83,6 +84,63 @@ func TestRunHTTPGracefulShutdown(t *testing.T) {
 	if c, err := net.Dial("tcp", addr); err == nil {
 		c.Close()
 		t.Fatal("server still listening after shutdown")
+	}
+}
+
+// Clients keep a GET stream open for server-to-client messages; shutdown
+// must end it instead of waiting out the timeout and reporting an error.
+func TestRunHTTPShutdownEndsStreams(t *testing.T) {
+	addr := freeAddr(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- pingServer().RunHTTP(ctx, addr) }()
+	waitListening(t, addr)
+
+	url := "http://" + addr + "/"
+	post := func(body, session string) *http.Response {
+		req, _ := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		if session != "" {
+			req.Header.Set("Mcp-Session-Id", session)
+			req.Header.Set("Mcp-Protocol-Version", "2025-06-18")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		return resp
+	}
+	session := post(initializeRequest, "").Header.Get("Mcp-Session-Id")
+	if session == "" {
+		t.Fatal("no session id")
+	}
+	post(`{"jsonrpc":"2.0","method":"notifications/initialized"}`, session)
+
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Mcp-Session-Id", session)
+	req.Header.Set("Mcp-Protocol-Version", "2025-06-18")
+	stream, err := http.DefaultClient.Do(req)
+	if err != nil || stream.StatusCode != http.StatusOK {
+		t.Fatalf("GET stream: %v, %v", stream, err)
+	}
+	defer stream.Body.Close()
+
+	start := time.Now()
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunHTTP with an open stream: %v, want nil", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("RunHTTP did not return")
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("shutdown took %v; open streams must be ended, not waited out", d)
 	}
 }
 

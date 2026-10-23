@@ -44,25 +44,64 @@ func (s *Server) RunStdio(ctx context.Context) error {
 	return sdkadapter.ServeStdio(ctx, srv, os.Stdin, out)
 }
 
+// HTTP server limits used by RunHTTP.
+const (
+	httpReadHeaderTimeout = 10 * time.Second
+	httpIdleTimeout       = 2 * time.Minute
+	httpShutdownTimeout   = 5 * time.Second
+)
+
 // RunHTTP serves s over Streamable HTTP on addr until ctx is done.
+//
+// On shutdown it stops accepting connections, ends open server-to-client
+// streams (GET requests) and waits up to 5s for in-flight requests before
+// closing the remaining connections.
 func (s *Server) RunHTTP(ctx context.Context, addr string) error {
 	h, err := s.Handler()
 	if err != nil {
 		return err
 	}
-	// IdleTimeout closes idle keep-alive connections; without it they would
-	// fall back to the (unset) ReadTimeout and never be closed.
-	hs := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	streams, endStreams := context.WithCancel(context.Background())
+	defer endStreams()
+	hs := &http.Server{
+		Addr:              addr,
+		Handler:           endOnShutdown(h, streams),
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		IdleTimeout:       httpIdleTimeout,
+	}
 	errc := make(chan error, 1)
 	go func() { errc <- hs.ListenAndServe() }()
 	select {
 	case err := <-errc:
 		return err
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		endStreams()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
 		defer cancel()
-		return hs.Shutdown(shutdownCtx)
+		if err := hs.Shutdown(shutdownCtx); err != nil {
+			s.logger.Warn("argon: HTTP shutdown timed out; closing remaining connections", "error", err)
+			return hs.Close()
+		}
+		return nil
 	}
+}
+
+// endOnShutdown cancels GET requests (long-lived server-to-client streams)
+// when streams is done. They never finish on their own, so without this a
+// graceful shutdown would always wait out its timeout. Other requests keep
+// their context so in-flight calls can still complete.
+func endOnShutdown(h http.Handler, streams context.Context) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			h.ServeHTTP(w, r)
+			return
+		}
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		stop := context.AfterFunc(streams, cancel)
+		defer stop()
+		h.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // Handler returns s as an http.Handler for embedding into an existing HTTP
