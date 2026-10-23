@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func TestMaxOutput(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := MaxOutput(tt.limit)(func(context.Context, *Request) (*Result, error) { return tt.res, nil })
+			h := maxOutputMiddleware(tt.limit)(func(context.Context, *Request) (*Result, error) { return tt.res, nil })
 			_, err := h(ctx, req)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
@@ -53,7 +53,7 @@ func TestChainOrder(t *testing.T) {
 			}
 		}
 	}
-	h := Chain(textHandler("ok"), mw("a"), mw("b"), mw("c"))
+	h := chain(textHandler("ok"), mw("a"), mw("b"), mw("c"))
 	if _, err := h(context.Background(), &Request{}); err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestChainOrder(t *testing.T) {
 }
 
 func TestRecover(t *testing.T) {
-	h := Recover(slog.New(slog.DiscardHandler))(func(context.Context, *Request) (*Result, error) {
+	h := recoverMiddleware(slog.New(slog.DiscardHandler))(func(context.Context, *Request) (*Result, error) {
 		panic("boom")
 	})
 	res, err := h(context.Background(), &Request{Tool: "t"})
@@ -76,7 +76,7 @@ func TestRecover(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
-	h := Timeout(10 * time.Millisecond)(func(ctx context.Context, _ *Request) (*Result, error) {
+	h := timeoutMiddleware(10 * time.Millisecond)(func(ctx context.Context, _ *Request) (*Result, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	})
@@ -86,7 +86,7 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestRequireScopes(t *testing.T) {
-	h := RequireScopes("a", "b")(textHandler("ok"))
+	h := scopesMiddleware("a", "b")(textHandler("ok"))
 	tests := []struct {
 		name string
 		id   *auth.Identity
@@ -111,8 +111,8 @@ func TestRequireScopes(t *testing.T) {
 }
 
 func TestBuildToolOverridesDefaults(t *testing.T) {
-	tool := &Tool{Name: "t", Handler: textHandler("12345"), MaxOutput: 3}
-	h := Build(tool, Defaults{MaxOutput: 100}, nil)
+	tool := &toolDef{Name: "t", Handler: textHandler("12345"), MaxOutput: 3}
+	h := buildTool(tool, policy{MaxOutput: 100}, nil)
 	if _, err := h(context.Background(), &Request{Tool: "t"}); err == nil {
 		t.Fatal("per-tool MaxOutput must override the default")
 	}
@@ -120,7 +120,7 @@ func TestBuildToolOverridesDefaults(t *testing.T) {
 
 func TestBuildAttachesMeta(t *testing.T) {
 	ro := true
-	tool := &Tool{
+	tool := &toolDef{
 		Name:        "t",
 		Annotations: Annotations{ReadOnly: &ro},
 		Scopes:      []string{"s"},
@@ -133,7 +133,7 @@ func TestBuildAttachesMeta(t *testing.T) {
 			return next(ctx, r)
 		}
 	}
-	h := Build(tool, Defaults{Timeout: time.Minute, MaxOutput: 7}, []Middleware{spy})
+	h := buildTool(tool, policy{Timeout: time.Minute, MaxOutput: 7}, []Middleware{spy})
 	ctx := auth.NewContext(context.Background(), &auth.Identity{Scopes: []string{"s"}})
 	req := &Request{Tool: "t"}
 	if _, err := h(ctx, req); err != nil {
@@ -153,7 +153,7 @@ func TestMaxOutputCountsAllContent(t *testing.T) {
 		TextContent{Text: "ab"},
 		ImageContent{MIMEType: "", Data: make([]byte, 10)},
 	}}
-	h := MaxOutput(11)(func(context.Context, *Request) (*Result, error) { return res, nil })
+	h := maxOutputMiddleware(11)(func(context.Context, *Request) (*Result, error) { return res, nil })
 	if _, err := h(context.Background(), &Request{Tool: "t"}); err == nil {
 		t.Fatal("image bytes must count towards the limit")
 	}

@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 func TestLogCalls(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, nil))
-	ok := LogCalls(log)(textHandler("ok"))
-	fail := LogCalls(log)(func(context.Context, *Request) (*Result, error) { return nil, errors.New("boom") })
+	ok := logCallsMiddleware(log)(textHandler("ok"))
+	fail := logCallsMiddleware(log)(func(context.Context, *Request) (*Result, error) { return nil, errors.New("boom") })
 
 	ok(context.Background(), &Request{Tool: "good", Arguments: []byte(`{"secret":"hunter2"}`)})
 	fail(context.Background(), &Request{Tool: "bad"})

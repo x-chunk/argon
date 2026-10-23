@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -7,19 +7,19 @@ import (
 	"time"
 )
 
-// Defaults are server-wide policies applied when a tool does not override them.
-type Defaults struct {
+// policy are server-wide policies applied when a tool does not override them.
+type policy struct {
 	Timeout   time.Duration
 	MaxOutput int
 	Logger    *slog.Logger
 }
 
-// Build assembles the effective handler for t. Order, outermost first:
+// buildTool assembles the effective handler for t. Order, outermost first:
 //
 //	meta → recover → global middleware → scopes → timeout → max output → tool middleware → handler
 //
 // Recover is outermost so that panics anywhere in the chain are contained.
-func Build(t *Tool, d Defaults, global []Middleware) Handler {
+func buildTool(t *toolDef, d policy, global []Middleware) Handler {
 	timeout := d.Timeout
 	if t.Timeout != 0 {
 		timeout = t.Timeout
@@ -43,11 +43,11 @@ func Build(t *Tool, d Defaults, global []Middleware) Handler {
 	}
 
 	mws := make([]Middleware, 0, len(global)+len(t.Middleware)+5)
-	mws = append(mws, withMeta(meta), Recover(log))
+	mws = append(mws, withMeta(meta), recoverMiddleware(log))
 	mws = append(mws, global...)
-	mws = append(mws, RequireScopes(t.Scopes...), Timeout(timeout), MaxOutput(maxOut))
+	mws = append(mws, scopesMiddleware(t.Scopes...), timeoutMiddleware(timeout), maxOutputMiddleware(maxOut))
 	mws = append(mws, t.Middleware...)
-	return Chain(t.Handler, mws...)
+	return chain(t.Handler, mws...)
 }
 
 // withMeta attaches the tool description to every request. A shallow copy

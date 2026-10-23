@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"go.xchunk.org/argon/internal/core"
 	"go.xchunk.org/argon/internal/sdkadapter"
 	"go.xchunk.org/argon/internal/stdioguard"
 )
@@ -106,15 +105,15 @@ func (s *Server) build() (*sdkadapter.Server, error) {
 	}
 	built := make([]sdkadapter.Tool, 0, len(tools))
 	for _, t := range tools {
-		built = append(built, adaptTool(t, core.Build(t, s.defaults, s.global)))
+		built = append(built, adaptTool(t, buildTool(t, s.defaults, s.global)))
 	}
 	builtRes := make([]sdkadapter.Resource, 0, len(resources))
 	for _, r := range resources {
-		builtRes = append(builtRes, adaptResource(r, core.BuildResource(r, s.defaults)))
+		builtRes = append(builtRes, adaptResource(r, buildResource(r, s.defaults)))
 	}
 	builtPrompts := make([]sdkadapter.Prompt, 0, len(prompts))
 	for _, p := range prompts {
-		builtPrompts = append(builtPrompts, adaptPrompt(p, core.BuildPrompt(p, s.defaults)))
+		builtPrompts = append(builtPrompts, adaptPrompt(p, buildPrompt(p, s.defaults)))
 	}
 	return sdkadapter.NewServer(sdkadapter.Config{
 		Name:         s.name,

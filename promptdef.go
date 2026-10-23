@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -27,38 +27,38 @@ type PromptMessage struct {
 	Content Content
 }
 
-// PromptArgument describes an argument the prompt accepts.
-type PromptArgument struct {
+// promptArgument describes an argument the prompt accepts.
+type promptArgument struct {
 	Name        string
 	Description string
 	Required    bool
 }
 
-// PromptRequest is a single prompts/get call as seen by the core.
-type PromptRequest struct {
+// promptRequest is a single prompts/get call as seen by the
+type promptRequest struct {
 	Name      string
 	Arguments map[string]string
 }
 
-// PromptHandler renders a prompt.
-type PromptHandler func(ctx context.Context, req *PromptRequest) ([]PromptMessage, error)
+// promptHandler renders a prompt.
+type promptHandler func(ctx context.Context, req *promptRequest) ([]PromptMessage, error)
 
-// Prompt is a registered prompt.
-type Prompt struct {
+// promptDef is a registered prompt.
+type promptDef struct {
 	Name        string
 	Title       string
 	Description string
-	Arguments   []PromptArgument
+	Arguments   []promptArgument
 
 	// Per-prompt policy. Zero values mean "use server defaults".
 	Scopes    []string
 	Timeout   time.Duration
 	MaxOutput int
 
-	Handler PromptHandler
+	Handler promptHandler
 }
 
-func (p *Prompt) validate() error {
+func (p *promptDef) validate() error {
 	if !validName.MatchString(p.Name) {
 		return fmt.Errorf("argon: invalid prompt name %q", p.Name)
 	}

@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"go.xchunk.org/argon/auth"
-	"go.xchunk.org/argon/internal/core"
 )
 
 // Safe defaults applied when not overridden.
@@ -37,8 +36,8 @@ type Server struct {
 	logger       *slog.Logger
 	logCalls     bool
 
-	reg      *core.Registry
-	defaults core.Defaults
+	reg      *registry
+	defaults policy
 	global   []Middleware
 	auth     *auth.Config
 
@@ -54,8 +53,8 @@ func New(name string, opts ...Option) *Server {
 	s := &Server{
 		name:     name,
 		version:  "dev",
-		reg:      core.NewRegistry(),
-		defaults: core.Defaults{Timeout: DefaultTimeout, MaxOutput: DefaultMaxOutput},
+		reg:      newRegistry(),
+		defaults: policy{Timeout: DefaultTimeout, MaxOutput: DefaultMaxOutput},
 	}
 	for _, o := range opts {
 		o(s)
@@ -65,7 +64,7 @@ func New(name string, opts ...Option) *Server {
 	}
 	if s.logCalls {
 		// Outermost global middleware, so it measures the whole call.
-		s.global = append([]Middleware{core.LogCalls(s.logger)}, s.global...)
+		s.global = append([]Middleware{logCallsMiddleware(s.logger)}, s.global...)
 	}
 	s.defaults.Logger = s.logger
 	return s

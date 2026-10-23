@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"go.xchunk.org/argon/internal/core"
 	"go.xchunk.org/argon/internal/errs"
 	"go.xchunk.org/argon/internal/sdkadapter"
 )
@@ -12,7 +11,7 @@ import (
 // This file converts Argon's definitions and results into the SDK adapter's
 // own plain types. The adapter never sees Argon's public API.
 
-func adaptTool(t *core.Tool, h core.Handler) sdkadapter.Tool {
+func adaptTool(t *toolDef, h Handler) sdkadapter.Tool {
 	a := t.Annotations
 	return sdkadapter.Tool{
 		Def: sdkadapter.ToolDef{
@@ -26,7 +25,7 @@ func adaptTool(t *core.Tool, h core.Handler) sdkadapter.Tool {
 			},
 		},
 		Call: func(ctx context.Context, args json.RawMessage) (*sdkadapter.ToolResult, error) {
-			res, err := h(ctx, &core.Request{Tool: t.Name, Arguments: args})
+			res, err := h(ctx, &Request{Tool: t.Name, Arguments: args})
 			if err != nil {
 				return nil, err
 			}
@@ -39,7 +38,7 @@ func adaptTool(t *core.Tool, h core.Handler) sdkadapter.Tool {
 	}
 }
 
-func adaptResource(r *core.Resource, h core.ResourceHandler) sdkadapter.Resource {
+func adaptResource(r *resourceDef, h resourceHandler) sdkadapter.Resource {
 	return sdkadapter.Resource{
 		Def: sdkadapter.ResourceDef{
 			URI:         r.URI,
@@ -54,7 +53,7 @@ func adaptResource(r *core.Resource, h core.ResourceHandler) sdkadapter.Resource
 			if !ok {
 				return nil, errs.ResourceNotFound
 			}
-			c, err := h(ctx, &core.ResourceRequest{URI: uri, Params: params})
+			c, err := h(ctx, &resourceRequest{URI: uri, Params: params})
 			if err != nil {
 				return nil, err
 			}
@@ -63,7 +62,7 @@ func adaptResource(r *core.Resource, h core.ResourceHandler) sdkadapter.Resource
 	}
 }
 
-func adaptPrompt(p *core.Prompt, h core.PromptHandler) sdkadapter.Prompt {
+func adaptPrompt(p *promptDef, h promptHandler) sdkadapter.Prompt {
 	def := sdkadapter.PromptDef{Name: p.Name, Title: p.Title, Description: p.Description}
 	for _, a := range p.Arguments {
 		def.Arguments = append(def.Arguments, sdkadapter.PromptArg{Name: a.Name, Description: a.Description, Required: a.Required})
@@ -71,7 +70,7 @@ func adaptPrompt(p *core.Prompt, h core.PromptHandler) sdkadapter.Prompt {
 	return sdkadapter.Prompt{
 		Def: def,
 		Get: func(ctx context.Context, args map[string]string) ([]sdkadapter.PromptMsg, error) {
-			msgs, err := h(ctx, &core.PromptRequest{Name: p.Name, Arguments: args})
+			msgs, err := h(ctx, &promptRequest{Name: p.Name, Arguments: args})
 			if err != nil {
 				return nil, err
 			}
@@ -84,13 +83,13 @@ func adaptPrompt(p *core.Prompt, h core.PromptHandler) sdkadapter.Prompt {
 	}
 }
 
-func toBlock(c core.Content) sdkadapter.Block {
+func toBlock(c Content) sdkadapter.Block {
 	switch c := c.(type) {
-	case core.ImageContent:
+	case ImageContent:
 		return sdkadapter.Block{Kind: sdkadapter.BlockImage, MIMEType: c.MIMEType, Data: c.Data}
-	case core.ResourceLink:
+	case ResourceLink:
 		return sdkadapter.Block{Kind: sdkadapter.BlockResourceLink, URI: c.URI, Name: c.Name, Title: c.Title, Description: c.Description, MIMEType: c.MIMEType}
-	case core.TextContent:
+	case TextContent:
 		return sdkadapter.Block{Kind: sdkadapter.BlockText, Text: c.Text}
 	}
 	return sdkadapter.Block{Kind: sdkadapter.BlockText}

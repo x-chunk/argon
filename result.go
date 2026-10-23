@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-
-	"go.xchunk.org/argon/internal/core"
 )
 
 // Text returns a result consisting of a single text block.
@@ -29,7 +27,7 @@ func NewResult(blocks ...Content) *Result { return &Result{Content: blocks} }
 //     content to be an object, so slices and scalars are text-only.
 //
 // Nil slices and maps are encoded as [] and {} rather than null.
-func pack(out any, structured bool) (*core.Result, error) {
+func pack(out any, structured bool) (*Result, error) {
 	switch v := out.(type) {
 	case *Result:
 		return v, nil

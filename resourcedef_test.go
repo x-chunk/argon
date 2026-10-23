@@ -1,4 +1,4 @@
-package core
+package argon
 
 import (
 	"context"
@@ -6,15 +6,15 @@ import (
 	"testing"
 )
 
-func readText(s string) ResourceHandler {
-	return func(context.Context, *ResourceRequest) (*ResourceContents, error) {
+func readText(s string) resourceHandler {
+	return func(context.Context, *resourceRequest) (*ResourceContents, error) {
 		return &ResourceContents{Text: s}, nil
 	}
 }
 
 func TestAddResourceValidation(t *testing.T) {
-	r := NewRegistry()
-	ok := []*Resource{
+	r := newRegistry()
+	ok := []*resourceDef{
 		{URI: "file:///readme.md", Name: "readme", Handler: readText("x")},
 		{URITemplate: "notes://{id}", Name: "note", Handler: readText("x")},
 	}
@@ -23,7 +23,7 @@ func TestAddResourceValidation(t *testing.T) {
 			t.Fatalf("%s: %v", res.Key(), err)
 		}
 	}
-	bad := map[string]*Resource{
+	bad := map[string]*resourceDef{
 		"duplicate":         {URI: "file:///readme.md", Name: "dup", Handler: readText("")},
 		"relative uri":      {URI: "readme.md", Name: "r", Handler: readText("")},
 		"no name":           {URI: "file:///a", Handler: readText("")},
@@ -44,7 +44,7 @@ func TestAddResourceValidation(t *testing.T) {
 }
 
 func TestResourceMatch(t *testing.T) {
-	res := &Resource{URITemplate: "notes://{folder}/{id}", Name: "n", Handler: readText("")}
+	res := &resourceDef{URITemplate: "notes://{folder}/{id}", Name: "n", Handler: readText("")}
 	if err := res.validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestResourceMatch(t *testing.T) {
 	if _, ok := res.Match("other://work/42"); ok {
 		t.Fatal("foreign scheme must not match")
 	}
-	fixed := &Resource{URI: "file:///a", Name: "a", Handler: readText("")}
+	fixed := &resourceDef{URI: "file:///a", Name: "a", Handler: readText("")}
 	if _, ok := fixed.Match("file:///a"); !ok {
 		t.Fatal("fixed URI must match itself")
 	}

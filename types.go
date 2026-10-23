@@ -1,19 +1,12 @@
-// Package core holds Argon's transport-independent machinery: the tool
-// registry, handler types and the middleware chain. It knows nothing about
-// the MCP SDK; internal/sdkadapter translates between the two.
-package core
+package argon
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 )
 
-// ErrNotImplemented marks skeleton code paths that are not written yet.
-var ErrNotImplemented = errors.New("argon: not implemented")
-
-// Request is a single tool invocation as seen by the core.
+// Request is a single tool invocation as seen by the
 type Request struct {
 	// Tool is the name of the invoked tool.
 	Tool string
@@ -89,8 +82,8 @@ type Annotations struct {
 	OpenWorld   *bool
 }
 
-// Tool is a registered tool with everything needed to expose and run it.
-type Tool struct {
+// toolDef is a registered tool with everything needed to expose and run it.
+type toolDef struct {
 	Name         string
 	Title        string
 	Description  string
