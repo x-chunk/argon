@@ -3,6 +3,7 @@ package argon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,7 +23,11 @@ const EnvHTTP = "ARGON_HTTP"
 func (s *Server) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if addr := httpAddr(os.Args[1:], os.Getenv); addr != "" {
+	addr, err := httpAddr(os.Args[1:], os.Getenv)
+	if err != nil {
+		return err
+	}
+	if addr != "" {
 		return s.RunHTTP(ctx, addr)
 	}
 	return s.RunStdio(ctx)
@@ -196,16 +201,23 @@ func (s *Server) warnScopesWithoutAuth(transport string) {
 }
 
 // httpAddr extracts the HTTP listen address from args or the environment.
-func httpAddr(args []string, getenv func(string) string) string {
+// A --http flag without a value is an error rather than a silent fallback
+// to stdio.
+func httpAddr(args []string, getenv func(string) string) (string, error) {
 	for i, a := range args {
 		switch {
 		case a == "--http" || a == "-http":
-			if i+1 < len(args) {
-				return args[i+1]
+			if i+1 >= len(args) || args[i+1] == "" {
+				return "", fmt.Errorf("argon: %s requires a listen address, e.g. %s :8080", a, a)
 			}
+			return args[i+1], nil
 		case strings.HasPrefix(a, "--http="), strings.HasPrefix(a, "-http="):
-			return a[strings.Index(a, "=")+1:]
+			addr := a[strings.Index(a, "=")+1:]
+			if addr == "" {
+				return "", fmt.Errorf("argon: %s requires a listen address", a)
+			}
+			return addr, nil
 		}
 	}
-	return getenv(EnvHTTP)
+	return getenv(EnvHTTP), nil
 }
