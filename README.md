@@ -53,11 +53,13 @@ warning when it does. `RunStdio`, `RunHTTP` and
 
 ## Tools
 
-- The input type's JSON Schema is inferred from `json` and `jsonschema`
-  struct tags. Arguments are validated before your handler runs; invalid
+- The input is a struct (or a pointer to one, or a map); its JSON Schema is
+  inferred from `json` and `jsonschema` struct tags. Arguments are validated before your handler runs; invalid
   input becomes an error result the model can correct.
-- Return a `string`, any JSON-serializable value (sent as structured
-  content), or a `*argon.Result` for several blocks:
+- Return a `string`, a struct or pointer to a struct (sent as structured
+  content with an output schema, plus its JSON as text), any other
+  JSON-serializable value (sent as JSON text), or a `*argon.Result` for
+  several blocks:
   `argon.NewResult(argon.TextContent{...}, argon.ImageContent{...}, argon.ResourceLink{...})`.
 - A returned `error` becomes an `isError` result, not a protocol failure.
 - Options: `ReadOnly()`, `Destructive()`, `Idempotent()`, `OpenWorld()`,
@@ -179,7 +181,9 @@ argon.Tool(s, "add_note", "Save a note", addNote, argon.Scopes("notes:write"))
 - The audience is mandatory, so tokens minted for other resources are
   rejected.
 - Unauthenticated requests get `401` with a `WWW-Authenticate` header
-  pointing at `/.well-known/oauth-protected-resource` (RFC 9728).
+  pointing at the RFC 9728 metadata: `/.well-known/oauth-protected-resource`
+  followed by the audience path (e.g. `.../oauth-protected-resource/mcp` for
+  `https://example.com/mcp`).
 - Mounting under a prefix: set `Audience` to the full endpoint URL and also
   mount the metadata endpoint at the root, since its RFC 9728 path lives
   outside the prefix:
