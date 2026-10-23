@@ -13,8 +13,10 @@ type ToolOption func(*toolDef)
 
 // Tool registers a typed tool on s.
 //
-// In must be a struct (or map); its JSON Schema is inferred from json and
-// jsonschema struct tags, and input is validated against it. Out may be a
+// In must be a struct, a pointer to a struct or a map with string keys; its
+// JSON Schema is inferred from json and jsonschema struct tags, and input is
+// validated against it. Other input types are reported as registration
+// errors. Out may be a
 // string, *Result or any JSON-serializable type. A returned error becomes an
 // isError result, not a protocol failure.
 //
@@ -35,7 +37,7 @@ func Tool[In, Out any](s *Server, name, description string, h func(context.Conte
 }
 
 func newTool[In, Out any](name, description string, h func(context.Context, In) (Out, error)) (*toolDef, error) {
-	in, err := schemaFor[In]()
+	in, err := inputSchema(reflect.TypeFor[In]())
 	if err != nil {
 		return nil, fmt.Errorf("argon: tool %q input schema: %w", name, err)
 	}
@@ -68,6 +70,24 @@ func newTool[In, Out any](name, description string, h func(context.Context, In) 
 			return pack(out, outSchema != nil)
 		},
 	}, nil
+}
+
+// inputSchema infers the schema for a tool input type. MCP requires an
+// object schema, so a pointer to a struct is described by its element and
+// anything that is not an object is rejected here rather than by the SDK at
+// startup.
+func inputSchema(t reflect.Type) (*schema, error) {
+	if t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Struct {
+		t = t.Elem()
+	}
+	sc, err := schemaForType(t)
+	if err != nil {
+		return nil, err
+	}
+	if typ := sc.resolved.Schema().Type; typ != "object" {
+		return nil, fmt.Errorf("input type %s must be a struct, a pointer to a struct or a map (schema type %q)", t, typ)
+	}
+	return sc, nil
 }
 
 // structuredOutput reports whether a tool with output type t produces

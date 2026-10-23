@@ -191,3 +191,27 @@ func TestNilResultIsToolError(t *testing.T) {
 		}
 	}
 }
+
+func TestPointerInput(t *testing.T) {
+	s := argon.New("test")
+	argon.Tool(s, "echo", "Echo text", func(_ context.Context, in *echoIn) (string, error) {
+		return in.Text, nil
+	})
+	got, err := argontest.Call[string](t, s, "echo", echoIn{Text: "hi"})
+	if err != nil || got != "hi" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+}
+
+func TestNonObjectInputReported(t *testing.T) {
+	s := argon.New("test")
+	argon.Tool(s, "str", "String input", func(_ context.Context, in string) (string, error) { return in, nil })
+	argon.Tool(s, "list", "Slice input", func(_ context.Context, in []string) (string, error) { return "", nil })
+	argon.Tool(s, "ptr", "Pointer to scalar", func(_ context.Context, in *int) (string, error) { return "", nil })
+	if err := s.Err(); err == nil {
+		t.Fatal("want registration errors for non-object input types")
+	}
+	if _, err := s.Handler(); err == nil {
+		t.Fatal("Handler must report the registration errors instead of panicking")
+	}
+}
