@@ -44,3 +44,20 @@ func TestServeStdioAnswersBeforeEOF(t *testing.T) {
 		t.Fatalf("tool call was not answered before shutdown; output:\n%s", out.String())
 	}
 }
+
+func TestCanonicalID(t *testing.T) {
+	same := [][]string{
+		{`2`, `2.0`, `2e0`, `20e-1`},
+		{`"a"`, `"a"`},
+	}
+	for _, group := range same {
+		for _, id := range group[1:] {
+			if got, want := canonicalID(json.RawMessage(id)), canonicalID(json.RawMessage(group[0])); got != want {
+				t.Errorf("canonicalID(%s) = %q, want %q like %s", id, got, want, group[0])
+			}
+		}
+	}
+	if canonicalID(json.RawMessage(`1`)) == canonicalID(json.RawMessage(`"1"`)) {
+		t.Error("number and string ids must differ")
+	}
+}
