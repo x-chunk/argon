@@ -10,7 +10,8 @@ import (
 
 // Static returns a verifier that accepts a single pre-shared bearer token and
 // returns id for it. Intended for simple self-hosted setups where full OAuth
-// is overkill. Comparison is constant-time.
+// is overkill. Comparison is constant-time. Give id a Subject (see
+// Identity.Subject).
 func Static(token string, id Identity) TokenVerifier {
 	return VerifierFunc(func(_ context.Context, got string) (*Identity, error) {
 		if token == "" || subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
