@@ -36,7 +36,7 @@ func buildTool(t *toolDef, d policy, global []Middleware) Handler {
 	meta := &ToolMeta{
 		Name:        t.Name,
 		Title:       t.Title,
-		Annotations: t.Annotations,
+		Annotations: cloneAnnotations(t.Annotations),
 		Scopes:      slices.Clone(t.Scopes),
 		Timeout:     timeout,
 		MaxOutput:   maxOut,
@@ -60,4 +60,16 @@ func withMeta(meta *ToolMeta) Middleware {
 			return next(ctx, &r)
 		}
 	}
+}
+
+// cloneAnnotations copies the hint values so middleware writing through
+// Request.Meta cannot change what tools/list reports.
+func cloneAnnotations(a Annotations) Annotations {
+	clone := func(b *bool) *bool {
+		if b == nil {
+			return nil
+		}
+		return ptr(*b)
+	}
+	return Annotations{ReadOnly: clone(a.ReadOnly), Destructive: clone(a.Destructive), Idempotent: clone(a.Idempotent), OpenWorld: clone(a.OpenWorld)}
 }
