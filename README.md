@@ -11,8 +11,8 @@ Argon is a thin, opinionated layer over the official
 protocol; Argon owns ergonomics, safe defaults and token verification. SDK
 types never appear in Argon's API.
 
-> Status: **v0.1.0 Developer Preview 4** (`v0.1.0-preview.4`). The API may
-> change before v1.0.0. See [CHANGELOG.md](CHANGELOG.md).
+> Status: **v0.1.0 Release Candidate 1** (`v0.1.0-rc.1`). The v0.1 API is
+> frozen; it may still change before v1.0.0. See [CHANGELOG.md](CHANGELOG.md).
 
 ```
 go get go.xchunk.org/argon
