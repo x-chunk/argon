@@ -12,12 +12,13 @@ import (
 	"go.xchunk.org/argon/internal/errs"
 )
 
-// ErrResourceNotFound is returned by a resource handler when the requested
-// resource does not exist. The adapter maps it to the protocol's
-// "resource not found" error.
+// ErrResourceNotFound reports that a requested resource does not exist.
+// Return it (possibly wrapped) from a resource handler; the client receives
+// the protocol's "resource not found" error. Reads of URIs that match no
+// resource, or whose template variables do not decode, report it too.
 var ErrResourceNotFound = errs.ResourceNotFound
 
-// resourceRequest is a single resources/read call as seen by the
+// resourceRequest is a single resources/read call as seen by the pipeline.
 type resourceRequest struct {
 	// URI is the requested resource URI.
 	URI string
@@ -26,13 +27,17 @@ type resourceRequest struct {
 	Params map[string]string
 }
 
-// ResourceContents is the content of a resource: either text or binary.
+// ResourceContents is what a resource handler returns: text or binary data
+// (see TextResource and BlobResource).
 type ResourceContents struct {
 	// URI of the content; defaults to the requested URI when empty.
-	URI      string
+	URI string
+	// MIMEType defaults to the resource's declared type (see MIMEType).
 	MIMEType string
-	Text     string
-	Blob     []byte
+	// Text holds text contents; leave empty for binary contents.
+	Text string
+	// Blob holds binary contents; Argon base64-encodes them on the wire.
+	Blob []byte
 }
 
 func (c *ResourceContents) size() int { return len(c.Text) + len(c.Blob) }
